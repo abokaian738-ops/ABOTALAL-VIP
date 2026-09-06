@@ -17,8 +17,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -29,6 +31,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,21 +39,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatColorFill
+import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
@@ -58,7 +64,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -90,6 +96,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,52 +107,67 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
+import com.example.data.model.UserManagerUser
 import com.example.ui.theme.CairoFontFamily
+import com.example.ui.viewmodel.MikroTikViewModel
 import com.example.util.CardElementConfig
 import com.example.util.CardPrintAndExportHelper
 import com.example.util.CardTemplateConfig
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardDesignScreen(
+    viewModel: MikroTikViewModel? = null,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
 
-    // Templates list
-    val templatesList = listOf(
-        "كروت_فئة_100",
-        "كروت_فئة_200",
-        "كروت_فئة_500",
-        "تصميم_مخصص_1",
-        "تصميم_مخصص_2"
-    )
-    var selectedTemplateName by remember { mutableStateOf(templatesList[0]) }
+    // Observe real users and profiles from router/UserManager
+    val realUsers by viewModel?.userManagerUsers?.collectAsStateWithLifecycle(emptyList()) ?: remember { mutableStateOf(emptyList()) }
+    val userManagerProfiles by viewModel?.userManagerProfiles?.collectAsStateWithLifecycle(emptyList()) ?: remember { mutableStateOf(emptyList()) }
+    val hotspotProfiles by viewModel?.hotspotProfiles?.collectAsStateWithLifecycle(emptyList()) ?: remember { mutableStateOf(emptyList()) }
+
+    // Dynamic Templates list from persistent storage
+    var templatesList by remember { mutableStateOf(CardPrintAndExportHelper.getTemplatesList(context)) }
+    var selectedTemplateName by remember { mutableStateOf(templatesList.firstOrNull() ?: "كروت_فئة_100") }
     var templateDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Active Tab: 0 = مواصفات الصفحة والخلفية, 1 = عناصر الكرت
-    var selectedTabIndex by remember { mutableStateOf(1) }
+    // Dialogs
+    var showNewTemplateDialog by remember { mutableStateOf(false) }
+    var newTemplateInputName by remember { mutableStateOf("") }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showPackageLinkDialog by remember { mutableStateOf(false) }
+
+    // Active Tab: 0 = عناصر الكرت, 1 = مواصفات الصفحة والشبكة والخلفية
+    var selectedTabIndex by remember { mutableStateOf(0) }
 
     // Loaded Template Configuration
     var config by remember { mutableStateOf(CardPrintAndExportHelper.loadTemplateConfig(context, selectedTemplateName)) }
     var customBgBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // Reload configuration when template changes
-    LaunchedEffect(selectedTemplateName) {
-        config = CardPrintAndExportHelper.loadTemplateConfig(context, selectedTemplateName)
+    // Reload configuration when selected template changes
+    fun reloadConfig(name: String) {
+        selectedTemplateName = name
+        config = CardPrintAndExportHelper.loadTemplateConfig(context, name)
         if (config.customBgPath != null) {
             try {
                 customBgBitmap = BitmapFactory.decodeFile(config.customBgPath)
@@ -155,6 +177,10 @@ fun CardDesignScreen(
         } else {
             customBgBitmap = null
         }
+    }
+
+    LaunchedEffect(selectedTemplateName) {
+        reloadConfig(selectedTemplateName)
     }
 
     // Photo picker launcher for uploading custom card background
@@ -187,30 +213,62 @@ fun CardDesignScreen(
         }
     }
 
-    // Expand states for each of the 10 independent elements
+    // Expand states for independent element editors
     var expUsername by remember { mutableStateOf(true) }
     var expPassword by remember { mutableStateOf(false) }
+    var expTitle by remember { mutableStateOf(false) }
     var expPrice by remember { mutableStateOf(false) }
     var expProfile by remember { mutableStateOf(false) }
-    var expValidity by remember { mutableStateOf(false) }
-    var expQuota by remember { mutableStateOf(false) }
-    var expQr by remember { mutableStateOf(false) }
+    var expPayment by remember { mutableStateOf(false) }
     var expSerial by remember { mutableStateOf(false) }
-    var expBatch by remember { mutableStateOf(false) }
     var expPos by remember { mutableStateOf(false) }
+    var expBarcode by remember { mutableStateOf(false) }
+    var expLogo by remember { mutableStateOf(false) }
+
+    // Pick real card for realistic display (no fake dummy text)
+    val displayUser = remember(realUsers, config.userManagerPackageId) {
+        val matched = if (config.userManagerPackageId.isNotEmpty()) {
+            realUsers.firstOrNull { it.profile.equals(config.userManagerPackageId, ignoreCase = true) }
+        } else null
+        matched ?: realUsers.firstOrNull() ?: UserManagerUser(
+            username = "1541523324",
+            password = "5432",
+            profile = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
+            active = true
+        )
+    }
+
+    val displayBatch = remember(config, displayUser) {
+        GeneratedBatchRecord(
+            batchId = if (config.paymentConfig.titleText.isNotEmpty()) config.paymentConfig.titleText else "دفعة VIP",
+            profileName = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else displayUser.profile,
+            pricePerCard = if (config.priceConfig.titleText.isNotEmpty()) config.priceConfig.titleText.filter { it.isDigit() }.toIntOrNull() ?: 100 else 100,
+            count = 1,
+            date = "2026/09/03",
+            prefix = ""
+        )
+    }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = "تصاميم الكروت والطباعة",
-                            fontFamily = CairoFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = Color.White
-                        )
+                        Column {
+                            Text(
+                                text = "تصاميم الكروت والطباعة",
+                                fontFamily = CairoFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "القالب النشط: ${selectedTemplateName.replace("_", " ")}",
+                                fontFamily = CairoFontFamily,
+                                fontSize = 11.sp,
+                                color = Color(0xFFE2E8F0)
+                            )
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
@@ -222,10 +280,10 @@ fun CardDesignScreen(
                         }
                     },
                     actions = {
-                        // Quick Save
+                        // Quick Save button
                         IconButton(onClick = {
                             CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            Toast.makeText(context, "تم حفظ إعدادات التصميم بنجاح!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "تم حفظ إعدادات القالب بنجاح!", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Filled.Save, contentDescription = "حفظ", tint = Color.White)
                         }
@@ -233,17 +291,17 @@ fun CardDesignScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0C5A60))
                 )
             },
-            containerColor = Color(0xFFF1F5F9)
+            containerColor = Color(0xFFF8FAFC)
         ) { paddingValues ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
 
-                // 1. TOP LIVE CARD PREVIEW CARD
+                // 1. PINNED / STICKY LIVE CARD VISUAL PREVIEW
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -252,6 +310,7 @@ fun CardDesignScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
+                            // Header of Preview Card
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -274,33 +333,88 @@ fun CardDesignScreen(
                                     )
                                 }
 
+                                // Card Dimensions Badge
+                                val cardW = if (config.autoFitA4) {
+                                    val usableW = 210f - (config.pageMarginMm * 2) - (config.horizontalMarginMm * (config.columns - 1))
+                                    (usableW / config.columns.coerceAtLeast(1)).roundToInt()
+                                } else config.cardWidthMm.roundToInt()
+
+                                val cardH = if (config.autoFitA4) {
+                                    val usableH = 297f - (config.pageMarginMm * 2) - (config.verticalMarginMm * (config.rows - 1))
+                                    (usableH / config.rows.coerceAtLeast(1)).roundToInt()
+                                } else config.cardHeightMm.roundToInt()
+
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = Color(0xFF0C5A60).copy(alpha = 0.1f)
                                 ) {
                                     Text(
-                                        text = selectedTemplateName.replace("_", " "),
+                                        text = "$cardW × $cardH مم",
                                         fontFamily = CairoFontFamily,
                                         fontSize = 11.sp,
                                         color = Color(0xFF0C5A60),
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // The Interactive Preview Box
+                            // The Interactive Preview Box with Real Background & Precise Mm Positioning
                             LiveCardVisualPreview(
                                 config = config,
-                                customBgBitmap = customBgBitmap
+                                customBgBitmap = customBgBitmap,
+                                displayUser = displayUser,
+                                displayBatch = displayBatch,
+                                onUsernamePositionChange = { newX, newY ->
+                                    val updated = config.copy(
+                                        usernameConfig = config.usernameConfig.copy(
+                                            xMm = newX,
+                                            yMm = newY
+                                        )
+                                    )
+                                    config = updated
+                                    CardPrintAndExportHelper.saveTemplateConfig(context, updated)
+                                }
                             )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Real-time Coordinate Status Strip
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF1F5F9),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "موضع الكود: س = ${config.usernameConfig.xMm} مم | ص = ${config.usernameConfig.yMm} مم",
+                                        fontFamily = CairoFontFamily,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF0C5A60),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+
+                                    Text(
+                                        text = "الخط: ${config.usernameConfig.fontSize.toInt()} pt",
+                                        fontFamily = CairoFontFamily,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF475569)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                // 2. TEMPLATE SELECTOR & ACTION BUTTONS
+                // 2. TEMPLATES MANAGEMENT & CONTROLS
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -308,7 +422,7 @@ fun CardDesignScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             // Template selector dropdown
                             ExposedDropdownMenuBox(
                                 expanded = templateDropdownExpanded,
@@ -335,71 +449,144 @@ fun CardDesignScreen(
                                             onClick = {
                                                 selectedTemplateName = tmpl
                                                 templateDropdownExpanded = false
+                                                reloadConfig(tmpl)
                                             }
                                         )
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Main Action Buttons: [معاينة PDF (نظام الطباعة)] and [حفظ التعديلات]
+                            // Template Action Buttons: [حفظ | جديد | حذف | ربط باقة]
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // 1. معاينة PDF (Calls Android Native System Print Spooler Preview)
+                                // Save Template Button
                                 Button(
                                     onClick = {
                                         CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                                        CardPrintAndExportHelper.previewDesignInSystemPrint(
-                                            context = context,
-                                            config = config,
-                                            customBgBitmap = customBgBitmap
-                                        )
+                                        Toast.makeText(context, "تم حفظ القالب $selectedTemplateName بنجاح!", Toast.LENGTH_SHORT).show()
                                     },
-                                    modifier = Modifier
-                                        .weight(1.3f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C5A60))
                                 ) {
-                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "معاينة PDF وطباعة",
-                                        fontFamily = CairoFontFamily,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
+                                    Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("حفظ", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
 
-                                // 2. حفظ التعديلات
+                                // New Template Button
                                 OutlinedButton(
                                     onClick = {
-                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                                        Toast.makeText(context, "تم حفظ التعديلات بنجاح!", Toast.LENGTH_SHORT).show()
+                                        newTemplateInputName = ""
+                                        showNewTemplateDialog = true
                                     },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(12.dp)
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "حفظ القالب",
-                                        fontFamily = CairoFontFamily,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
-                                    )
+                                    Text("جديد", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+
+                                // Link Package Button
+                                OutlinedButton(
+                                    onClick = { showPackageLinkDialog = true },
+                                    modifier = Modifier.weight(1.2f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("ربط باقة", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+
+                                // Delete Template Button (if more than 1 template)
+                                if (templatesList.size > 1) {
+                                    IconButton(
+                                        onClick = { showDeleteConfirmDialog = true },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Delete, contentDescription = "حذف القالب", tint = Color(0xFFEF4444))
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // 3. SECTION TABS
+                // 3. PDF PREVIEW & PRINT ACTIONS CARD
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "🖨️ تصدير وطباعة الكروت",
+                                fontFamily = CairoFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF0F172A)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Button 1: Open built-in PDF Reader
+                                Button(
+                                    onClick = {
+                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                        CardPrintAndExportHelper.openPdfPreviewWithBuiltInViewer(
+                                            context = context,
+                                            config = config,
+                                            customBgBitmap = customBgBitmap,
+                                            users = if (realUsers.isNotEmpty()) realUsers else emptyList(),
+                                            batch = displayBatch
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                                ) {
+                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("معاينة PDF", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+
+                                // Button 2: Print & Save PDF (Native Android Spooler + Downloads)
+                                Button(
+                                    onClick = {
+                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                        CardPrintAndExportHelper.printAndSavePdfDocument(
+                                            context = context,
+                                            config = config,
+                                            customBgBitmap = customBgBitmap,
+                                            users = if (realUsers.isNotEmpty()) realUsers else emptyList(),
+                                            batch = displayBatch
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .weight(1.2f)
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C5A60))
+                                ) {
+                                    Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("طباعة وحفظ PDF", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. MAIN TABS
                 item {
                     TabRow(
                         selectedTabIndex = selectedTabIndex,
@@ -410,8 +597,8 @@ fun CardDesignScreen(
                             .shadow(2.dp)
                     ) {
                         Tab(
-                            selected = selectedTabIndex == 1,
-                            onClick = { selectedTabIndex = 1 },
+                            selected = selectedTabIndex == 0,
+                            onClick = { selectedTabIndex = 0 },
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Filled.Layers, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -421,22 +608,219 @@ fun CardDesignScreen(
                             }
                         )
                         Tab(
-                            selected = selectedTabIndex == 0,
-                            onClick = { selectedTabIndex = 0 },
+                            selected = selectedTabIndex == 1,
+                            onClick = { selectedTabIndex = 1 },
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("مواصفات الصفحة والخلفية", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("الصفحة والخلفية", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 }
                             }
                         )
                     }
                 }
 
-                // 4. TAB CONTENT
+                // 5. TAB CONTENT
                 if (selectedTabIndex == 0) {
-                    // TAB 0: مواصفات الصفحة والخلفية
+                    // TAB 0: عناصر الكرت الـ 10
+                    val cardW = if (config.autoFitA4) {
+                        val usableW = 210f - (config.pageMarginMm * 2) - (config.horizontalMarginMm * (config.columns - 1))
+                        (usableW / config.columns.coerceAtLeast(1))
+                    } else config.cardWidthMm
+
+                    val cardH = if (config.autoFitA4) {
+                        val usableH = 297f - (config.pageMarginMm * 2) - (config.verticalMarginMm * (config.rows - 1))
+                        (usableH / config.rows.coerceAtLeast(1))
+                    } else config.cardHeightMm
+
+                    // 1. اسم المستخدم / الكود
+                    item {
+                        MmElementEditorCard(
+                            title = "اسم المستخدم (كود الكرت)",
+                            icon = "🔑",
+                            config = config.usernameConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "كود الدخول:",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(usernameConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expUsername,
+                            onToggleExpand = { expUsername = !expUsername }
+                        )
+                    }
+
+                    // 2. كلمة المرور
+                    item {
+                        MmElementEditorCard(
+                            title = "كلمة المرور (PIN)",
+                            icon = "🔒",
+                            config = config.passwordConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "الرمز:",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(passwordConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expPassword,
+                            onToggleExpand = { expPassword = !expPassword }
+                        )
+                    }
+
+                    // 3. نص العنوان
+                    item {
+                        MmElementEditorCard(
+                            title = "نص العنوان / اسم الشبكة",
+                            icon = "🏷️",
+                            config = config.titleConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "شبكة ABO TALAL VIP",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(titleConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expTitle,
+                            onToggleExpand = { expTitle = !expTitle }
+                        )
+                    }
+
+                    // 4. السعر / الفئة
+                    item {
+                        MmElementEditorCard(
+                            title = "فئة الكرت / السعر",
+                            icon = "💰",
+                            config = config.priceConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "500 ر.ي",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(priceConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expPrice,
+                            onToggleExpand = { expPrice = !expPrice }
+                        )
+                    }
+
+                    // 5. اسم الباقة
+                    item {
+                        MmElementEditorCard(
+                            title = "اسم الباقة / البروفايل",
+                            icon = "📦",
+                            config = config.profileConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "باقة VIP 2GB",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(profileConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expProfile,
+                            onToggleExpand = { expProfile = !expProfile }
+                        )
+                    }
+
+                    // 6. رقم الدفعة
+                    item {
+                        MmElementEditorCard(
+                            title = "رقم الدفعة / الدفع",
+                            icon = "💳",
+                            config = config.paymentConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "دفعة 102",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(paymentConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expPayment,
+                            onToggleExpand = { expPayment = !expPayment }
+                        )
+                    }
+
+                    // 7. الرقم التسلسلي
+                    item {
+                        MmElementEditorCard(
+                            title = "الرقم التسلسلي",
+                            icon = "🔢",
+                            config = config.serialConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "#1024",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(serialConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expSerial,
+                            onToggleExpand = { expSerial = !expSerial }
+                        )
+                    }
+
+                    // 8. نقطة البيع
+                    item {
+                        MmElementEditorCard(
+                            title = "نقطة البيع (POS)",
+                            icon = "🏪",
+                            config = config.posConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            defaultTitle = "المركز الرئيسي",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(posConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expPos,
+                            onToggleExpand = { expPos = !expPos }
+                        )
+                    }
+
+                    // 9. الباركود
+                    item {
+                        MmBarcodeEditorCard(
+                            config = config.barcodeConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(barcodeConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expBarcode,
+                            onToggleExpand = { expBarcode = !expBarcode }
+                        )
+                    }
+
+                    // 10. الشعار
+                    item {
+                        MmBarcodeEditorCard(
+                            config = config.logoConfig,
+                            cardWidthMm = cardW,
+                            cardHeightMm = cardH,
+                            title = "شعار الكرت (Logo)",
+                            icon = "🖼️",
+                            onConfigChange = { updated ->
+                                val newCfg = config.copy(logoConfig = updated)
+                                config = newCfg
+                                CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            },
+                            isExpanded = expLogo,
+                            onToggleExpand = { expLogo = !expLogo }
+                        )
+                    }
+                } else {
+                    // TAB 1: مواصفات الصفحة والشبكة والخلفية
                     item {
                         CardPageAndBackgroundSettings(
                             config = config,
@@ -448,177 +832,10 @@ fun CardDesignScreen(
                             onPickCustomImage = { imagePickerLauncher.launch("image/*") },
                             onClearCustomBg = {
                                 customBgBitmap = null
-                                config = config.copy(
-                                    bgPreset = "bg_card_100",
-                                    customBgPath = null
-                                )
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                val updated = config.copy(bgPreset = "bg_card_100", customBgPath = null)
+                                config = updated
+                                CardPrintAndExportHelper.saveTemplateConfig(context, updated)
                             }
-                        )
-                    }
-                } else {
-                    // TAB 1: عناصر الكرت (كل عنصر مستقل تماماً مع إظهار/إخفاء وإعداداته)
-                    item {
-                        Text(
-                            text = "تحكم في إظهار وموقع وتنسيق كل عنصر من عناصر الكرت باستقلالية تامة:",
-                            fontFamily = CairoFontFamily,
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
-                    }
-
-                    // 1. اسم المستخدم / رمز الدخول
-                    item {
-                        IndependentElementEditorCard(
-                            title = "اسم المستخدم / رمز الدخول",
-                            icon = "👤",
-                            config = config.usernameConfig,
-                            defaultTitle = "رمز الدخول ↓",
-                            onConfigChange = { updated ->
-                                config = config.copy(usernameConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expUsername,
-                            onToggleExpand = { expUsername = !expUsername }
-                        )
-                    }
-
-                    // 2. كلمة المرور
-                    item {
-                        IndependentElementEditorCard(
-                            title = "كلمة المرور",
-                            icon = "🔑",
-                            config = config.passwordConfig,
-                            defaultTitle = "كلمة المرور:",
-                            onConfigChange = { updated ->
-                                config = config.copy(passwordConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expPassword,
-                            onToggleExpand = { expPassword = !expPassword }
-                        )
-                    }
-
-                    // 3. سعر الكرت / الفئة
-                    item {
-                        IndependentElementEditorCard(
-                            title = "سعر الكرت / الفئة",
-                            icon = "💰",
-                            config = config.priceConfig,
-                            defaultTitle = "ريال",
-                            onConfigChange = { updated ->
-                                config = config.copy(priceConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expPrice,
-                            onToggleExpand = { expPrice = !expPrice }
-                        )
-                    }
-
-                    // 4. اسم الباقة / البروفايل
-                    item {
-                        IndependentElementEditorCard(
-                            title = "اسم الباقة / البروفايل",
-                            icon = "📦",
-                            config = config.profileConfig,
-                            defaultTitle = "الباقة:",
-                            onConfigChange = { updated ->
-                                config = config.copy(profileConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expProfile,
-                            onToggleExpand = { expProfile = !expProfile }
-                        )
-                    }
-
-                    // 5. مدة الصلاحية / الوقت
-                    item {
-                        IndependentElementEditorCard(
-                            title = "مدة الصلاحية / الوقت",
-                            icon = "⏱️",
-                            config = config.validityConfig,
-                            defaultTitle = "الصلاحية:",
-                            onConfigChange = { updated ->
-                                config = config.copy(validityConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expValidity,
-                            onToggleExpand = { expValidity = !expValidity }
-                        )
-                    }
-
-                    // 6. الرصيد / حجم البيانات
-                    item {
-                        IndependentElementEditorCard(
-                            title = "الرصيد / حجم البيانات",
-                            icon = "📊",
-                            config = config.quotaConfig,
-                            defaultTitle = "الرصيد:",
-                            onConfigChange = { updated ->
-                                config = config.copy(quotaConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expQuota,
-                            onToggleExpand = { expQuota = !expQuota }
-                        )
-                    }
-
-                    // 7. الباركود / رمز الاستجابة السريعة (QR Code)
-                    item {
-                        IndependentQrEditorCard(
-                            config = config.qrConfig,
-                            onConfigChange = { updated ->
-                                config = config.copy(qrConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expQr,
-                            onToggleExpand = { expQr = !expQr }
-                        )
-                    }
-
-                    // 8. الرقم التسلسلي
-                    item {
-                        IndependentElementEditorCard(
-                            title = "الرقم التسلسلي",
-                            icon = "🔢",
-                            config = config.serialConfig,
-                            defaultTitle = "تسلسلي:",
-                            onConfigChange = { updated ->
-                                config = config.copy(serialConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expSerial,
-                            onToggleExpand = { expSerial = !expSerial }
-                        )
-                    }
-
-                    // 9. رقم الدفعة
-                    item {
-                        IndependentElementEditorCard(
-                            title = "رقم الدفعة",
-                            icon = "🏷️",
-                            config = config.batchConfig,
-                            defaultTitle = "الدفعة:",
-                            onConfigChange = { updated ->
-                                config = config.copy(batchConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expBatch,
-                            onToggleExpand = { expBatch = !expBatch }
-                        )
-                    }
-
-                    // 10. نقطة البيع
-                    item {
-                        IndependentPosEditorCard(
-                            config = config.posConfig,
-                            onConfigChange = { updated ->
-                                config = config.copy(posConfig = updated)
-                                CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                            },
-                            isExpanded = expPos,
-                            onToggleExpand = { expPos = !expPos }
                         )
                     }
                 }
@@ -629,22 +846,235 @@ fun CardDesignScreen(
             }
         }
     }
+
+    // --- DIALOG: New Template Dialog ---
+    if (showNewTemplateDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewTemplateDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color(0xFF0C5A60))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("إنشاء قالب تصميم جديد", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("أدخل اسم القالب الجديد (مثال: كروت_محل_الرئيسي):", fontFamily = CairoFontFamily, fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = newTemplateInputName,
+                        onValueChange = { newTemplateInputName = it.replace(" ", "_") },
+                        label = { Text("اسم القالب", fontFamily = CairoFontFamily) },
+                        placeholder = { Text("قالب_جديد") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = newTemplateInputName.trim()
+                        if (name.isNotEmpty()) {
+                            val curTemplates = CardPrintAndExportHelper.getTemplatesList(context).toMutableList()
+                            if (!curTemplates.contains(name)) {
+                                curTemplates.add(name)
+                                CardPrintAndExportHelper.saveTemplatesList(context, curTemplates)
+                                templatesList = curTemplates
+                            }
+                            // Save with current config
+                            val newCfg = config.copy(templateName = name)
+                            CardPrintAndExportHelper.saveTemplateConfig(context, newCfg)
+                            reloadConfig(name)
+                            showNewTemplateDialog = false
+                            Toast.makeText(context, "تم إنشاء القالب $name بنجاح!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C5A60))
+                ) {
+                    Text("إنشاء", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewTemplateDialog = false }) {
+                    Text("إلغاء", fontFamily = CairoFontFamily)
+                }
+            }
+        )
+    }
+
+    // --- DIALOG: Delete Template Confirmation ---
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFEF4444))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("تأكيد حذف القالب", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            },
+            text = {
+                Text(
+                    "هل أنت متأكد من حذف قالب \"$selectedTemplateName\"؟ لن تتمكن من استعادته.",
+                    fontFamily = CairoFontFamily,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CardPrintAndExportHelper.deleteTemplate(context, selectedTemplateName)
+                        templatesList = CardPrintAndExportHelper.getTemplatesList(context)
+                        val next = templatesList.firstOrNull() ?: "كروت_فئة_100"
+                        reloadConfig(next)
+                        showDeleteConfirmDialog = false
+                        Toast.makeText(context, "تم حذف القالب بنجاح!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("حذف نهائياً", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("إلغاء", fontFamily = CairoFontFamily)
+                }
+            }
+        )
+    }
+
+    // --- DIALOG: Link Package with Template ---
+    if (showPackageLinkDialog) {
+        val sp = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
+
+        AlertDialog(
+            onDismissRequest = { showPackageLinkDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Link, contentDescription = null, tint = Color(0xFF0C5A60))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ربط الباقات بالقالب الحالي", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "اختر الباقة التي ترغب بربطها مع قالب \"$selectedTemplateName\" ليتم استخدامه تلقائياً عند طباعتها:",
+                        fontFamily = CairoFontFamily,
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    // UserManager profiles
+                    Text("باقات User Manager:", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    if (userManagerProfiles.isEmpty()) {
+                        Text("لا توجد باقات يوزر مانجر محملة", fontFamily = CairoFontFamily, fontSize = 11.sp, color = Color.Gray)
+                    } else {
+                        userManagerProfiles.forEach { prof ->
+                            val isLinked = config.userManagerPackageId == prof.name
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        config = config.copy(userManagerPackageId = prof.name)
+                                        sp.edit().putString("${prof.name}_template", selectedTemplateName).apply()
+                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                        Toast.makeText(context, "تم ربط باقة ${prof.name} بهذا القالب!", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isLinked) Color(0xFFE0F2FE) else Color(0xFFF8FAFC)),
+                                border = BorderStroke(1.dp, if (isLinked) Color(0xFF0284C7) else Color(0xFFCBD5E1))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prof.name, fontFamily = CairoFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    if (isLinked) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Hotspot profiles
+                    if (hotspotProfiles.isNotEmpty()) {
+                        Text("بروفايلات الهوتسبوت:", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        hotspotProfiles.forEach { prof ->
+                            val isLinked = config.hotspotPackageId == prof.name
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        config = config.copy(hotspotPackageId = prof.name)
+                                        sp.edit().putString("${prof.name}_template", selectedTemplateName).apply()
+                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                        Toast.makeText(context, "تم ربط بروفايل ${prof.name} بهذا القالب!", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isLinked) Color(0xFFE0F2FE) else Color(0xFFF8FAFC)),
+                                border = BorderStroke(1.dp, if (isLinked) Color(0xFF0284C7) else Color(0xFFCBD5E1))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prof.name, fontFamily = CairoFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    if (isLinked) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showPackageLinkDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C5A60))
+                ) {
+                    Text("تم", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 }
 
 /**
- * Top Live Preview of Card with real background & coordinates
+ * Top Live Interactive Preview of Card with real background, exact mm positioning, and drag support
  */
 @Composable
 fun LiveCardVisualPreview(
     config: CardTemplateConfig,
-    customBgBitmap: Bitmap?
+    customBgBitmap: Bitmap?,
+    displayUser: UserManagerUser,
+    displayBatch: GeneratedBatchRecord,
+    onUsernamePositionChange: (newX: Float, newY: Float) -> Unit
 ) {
     val borderColor = parseHexToColor(config.borderColorHex)
 
-    Box(
+    // Calculate dimensions in mm
+    val cardWidthMm = if (config.autoFitA4) {
+        val usableW = 210f - (config.pageMarginMm * 2) - (config.horizontalMarginMm * (config.columns - 1))
+        (usableW / config.columns.coerceAtLeast(1)).coerceAtLeast(10f)
+    } else config.cardWidthMm
+
+    val cardHeightMm = if (config.autoFitA4) {
+        val usableH = 297f - (config.pageMarginMm * 2) - (config.verticalMarginMm * (config.rows - 1))
+        (usableH / config.rows.coerceAtLeast(1)).coerceAtLeast(10f)
+    } else config.cardHeightMm
+
+    val aspectRatio = (cardWidthMm / cardHeightMm).coerceIn(1.2f, 4.2f)
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(3.2f) // Standard voucher aspect ratio
+            .aspectRatio(aspectRatio)
             .clip(RoundedCornerShape(8.dp))
             .border(
                 width = if (config.borderEnabled) (config.borderSizeMm * 1.5f).dp.coerceAtLeast(1.dp) else 0.dp,
@@ -653,7 +1083,13 @@ fun LiveCardVisualPreview(
             )
             .background(if (config.backgroundEnabled) Color(0xFF0C2340) else Color.White)
     ) {
-        // Background Image if enabled
+        val boxWidthPx = constraints.maxWidth.toFloat()
+        val boxHeightPx = constraints.maxHeight.toFloat()
+
+        val scaleX = boxWidthPx / cardWidthMm
+        val scaleY = boxHeightPx / cardHeightMm
+
+        // 1. Background Graphic / Bitmap
         if (config.backgroundEnabled) {
             if (customBgBitmap != null) {
                 Image(
@@ -677,619 +1113,255 @@ fun LiveCardVisualPreview(
                         contentScale = ContentScale.FillBounds
                     )
                 } else {
-                    // Default fallback navy pill voucher visual
                     DefaultVoucherBoxVisual()
                 }
             }
         }
 
-        // Live Dynamic Overlays based on independent element configs:
-
-        // 1. Username
-        if (config.usernameConfig.visible) {
-            val uCfg = config.usernameConfig
-            val color = parseHexToColor(uCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (uCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (uCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (uCfg.showTitle && uCfg.titleText.isNotEmpty()) {
-                        Text(
-                            text = uCfg.titleText,
-                            fontSize = (uCfg.fontSize * 0.6f).sp,
-                            color = color.copy(alpha = 0.85f),
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = CairoFontFamily
-                        )
-                    }
-                    Text(
-                        text = "1541523324",
-                        fontSize = (uCfg.fontSize * 0.9f).sp,
-                        color = color,
-                        fontWeight = if (uCfg.isBold) FontWeight.Bold else FontWeight.Normal,
-                        fontFamily = CairoFontFamily
-                    )
-                }
-            }
-        }
-
-        // 2. Password (if visible)
-        if (config.passwordConfig.visible) {
-            val pCfg = config.passwordConfig
-            val color = parseHexToColor(pCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (pCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (pCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (pCfg.showTitle && pCfg.titleText.isNotEmpty()) "${pCfg.titleText} 5432" else "5432",
-                    fontSize = (pCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontWeight = if (pCfg.isBold) FontWeight.Bold else FontWeight.Normal,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 3. Price / الفئة
-        if (config.priceConfig.visible) {
-            val prCfg = config.priceConfig
-            val color = parseHexToColor(prCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (prCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (prCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "100",
-                        fontSize = (prCfg.fontSize * 0.9f).sp,
-                        color = color,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = CairoFontFamily
-                    )
-                    if (prCfg.showTitle && prCfg.titleText.isNotEmpty()) {
-                        Text(
-                            text = prCfg.titleText,
-                            fontSize = (prCfg.fontSize * 0.5f).sp,
-                            color = color,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = CairoFontFamily
-                        )
-                    }
-                }
-            }
-        }
-
-        // 4. Profile
-        if (config.profileConfig.visible) {
-            val pfCfg = config.profileConfig
-            val color = parseHexToColor(pfCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (pfCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (pfCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (pfCfg.showTitle && pfCfg.titleText.isNotEmpty()) "${pfCfg.titleText} باقة VIP" else "باقة VIP",
-                    fontSize = (pfCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontWeight = if (pfCfg.isBold) FontWeight.Bold else FontWeight.Normal,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 5. QR / Barcode (ONLY if visible!)
-        if (config.qrConfig.visible) {
-            val qrCfg = config.qrConfig
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (qrCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (qrCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(2.dp),
-                    color = Color.White,
-                    modifier = Modifier.size((qrCfg.widthMm * 1.8f).dp.coerceIn(16.dp, 40.dp))
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCode,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.padding(2.dp)
-                    )
-                }
-            }
-        }
-
-        // 6. Validity
-        if (config.validityConfig.visible) {
-            val vCfg = config.validityConfig
-            val color = parseHexToColor(vCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (vCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (vCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (vCfg.showTitle && vCfg.titleText.isNotEmpty()) "${vCfg.titleText} 7 أيام" else "7 أيام",
-                    fontSize = (vCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 7. Quota
-        if (config.quotaConfig.visible) {
-            val qCfg = config.quotaConfig
-            val color = parseHexToColor(qCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (qCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (qCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (qCfg.showTitle && qCfg.titleText.isNotEmpty()) "${qCfg.titleText} 2GB" else "2GB",
-                    fontSize = (qCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 8. Serial
-        if (config.serialConfig.visible) {
-            val sCfg = config.serialConfig
-            val color = parseHexToColor(sCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (sCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (sCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (sCfg.showTitle && sCfg.titleText.isNotEmpty()) "${sCfg.titleText} #1024" else "#1024",
-                    fontSize = (sCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 9. Batch
-        if (config.batchConfig.visible) {
-            val bCfg = config.batchConfig
-            val color = parseHexToColor(bCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (bCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (bCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (bCfg.showTitle && bCfg.titleText.isNotEmpty()) "${bCfg.titleText} VIP-1" else "VIP-1",
-                    fontSize = (bCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-
-        // 10. POS
-        if (config.posConfig.visible && config.posConfig.titleText.isNotEmpty()) {
-            val pCfg = config.posConfig
-            val color = parseHexToColor(pCfg.colorHex)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = (pCfg.xPercent * 240).dp.coerceIn(0.dp, 280.dp),
-                        top = (pCfg.yPercent * 60).dp.coerceIn(0.dp, 80.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = pCfg.titleText,
-                    fontSize = (pCfg.fontSize * 0.8f).sp,
-                    color = color,
-                    fontFamily = CairoFontFamily
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun DefaultVoucherBoxVisual() {
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left network badge
-        Text(
-            text = "📶 VIP",
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 6.dp)
-        )
-
-        // Center PIN white pill
-        Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = Color.White,
-            modifier = Modifier
-                .weight(1f)
-                .height(30.dp)
-                .padding(horizontal = 8.dp)
-        ) {}
-
-        // Right Price white pill
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color.White,
-            modifier = Modifier
-                .width(42.dp)
-                .height(42.dp)
-        ) {}
-    }
-}
-
-/**
- * Page & Background Specifications Editor (TAB 0)
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun CardPageAndBackgroundSettings(
-    config: CardTemplateConfig,
-    onConfigChange: (CardTemplateConfig) -> Unit,
-    customBgBitmap: Bitmap?,
-    onPickCustomImage: () -> Unit,
-    onClearCustomBg: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-
-        // 1. أبعاد وتوزيع الصفحة
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        // Helper to place text element using RTL coordinate (xMm from right edge, yMm from top edge)
+        @Composable
+        fun DrawPreviewText(
+            elem: CardElementConfig,
+            displayText: String,
+            isDraggable: Boolean = false,
+            onDragEnd: ((Float, Float) -> Unit)? = null
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "📄 أبعاد وتوزيع الصفحة (A4)",
-                    fontFamily = CairoFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color(0xFF0F172A)
-                )
+            if (!elem.visible || displayText.isEmpty()) return
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // عدد الأعمدة
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "عدد الأعمدة: ${config.columns}",
-                            fontFamily = CairoFontFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Slider(
-                            value = config.columns.toFloat(),
-                            onValueChange = { onConfigChange(config.copy(columns = it.toInt())) },
-                            valueRange = 1f..6f,
-                            steps = 4,
-                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
-                        )
-                    }
+            val color = parseHexToColor(elem.colorHex)
+            val density = LocalDensity.current
 
-                    // عدد الصفوف
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "عدد الصفوف: ${config.rows}",
-                            fontFamily = CairoFontFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Slider(
-                            value = config.rows.toFloat(),
-                            onValueChange = { onConfigChange(config.copy(rows = it.toInt())) },
-                            valueRange = 2f..25f,
-                            steps = 22,
-                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
-                        )
-                    }
-                }
+            // Calculate offset in dp
+            // In RTL, xMm is measured from right edge
+            val offsetXdp = with(density) { ((boxWidthPx - (elem.xMm * scaleX)) / density.density).dp }
+            val offsetYdp = with(density) { ((elem.yMm * scaleY) / density.density).dp }
 
-                // Summary badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF0C5A60).copy(alpha = 0.08f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "إجمالي الكروت في الصفحة الواحدة:",
-                            fontFamily = CairoFontFamily,
-                            fontSize = 12.sp,
-                            color = Color(0xFF0C5A60)
-                        )
-                        Text(
-                            text = "${config.columns * config.rows} كرت",
-                            fontFamily = CairoFontFamily,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0C5A60)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 2. خلفية الكرت (رفع من الهاتف + قوالب جاهزة)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🎨 خلفية الكرت",
-                        fontFamily = CairoFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF0F172A)
-                    )
-                    Switch(
-                        checked = config.backgroundEnabled,
-                        onCheckedChange = { onConfigChange(config.copy(backgroundEnabled = it)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
-                    )
-                }
-
-                if (config.backgroundEnabled) {
-                    // Upload button
-                    Button(
-                        onClick = onPickCustomImage,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
-                    ) {
-                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "رفع خلفية الكرت من الهاتف",
-                            fontFamily = CairoFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    if (customBgBitmap != null || config.bgPreset == "custom") {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFF1F5F9),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("تم تفعيل خلفية مخصصة من الهاتف", fontFamily = CairoFontFamily, fontSize = 12.sp)
-                                }
-                                TextButton(onClick = onClearCustomBg) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("مسح", fontFamily = CairoFontFamily, fontSize = 12.sp, color = Color(0xFFEF4444))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (isDraggable && onDragEnd != null) {
+                            Modifier.pointerInput(elem.xMm, elem.yMm) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    // In RTL, dragging left increases xMm from right
+                                    val deltaMmX = -dragAmount.x / scaleX
+                                    val deltaMmY = dragAmount.y / scaleY
+                                    val newX = (elem.xMm + deltaMmX).coerceIn(0f, cardWidthMm)
+                                    val newY = (elem.yMm + deltaMmY).coerceIn(0f, cardHeightMm)
+                                    onDragEnd((newX * 2).roundToInt() / 2f, (newY * 2).roundToInt() / 2f)
                                 }
                             }
-                        }
-                    }
-
-                    // Built-in presets
-                    Text(
-                        text = "أو اختر قالباً جاهزاً:",
-                        fontFamily = CairoFontFamily,
-                        fontSize = 12.sp,
-                        color = Color(0xFF64748B)
+                        } else Modifier
                     )
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        PresetChip(
-                            label = "قالب فئة 100",
-                            isSelected = config.bgPreset == "bg_card_100",
-                            onClick = { onConfigChange(config.copy(bgPreset = "bg_card_100", customBgPath = null)) }
-                        )
-                        PresetChip(
-                            label = "قالب فئة 200",
-                            isSelected = config.bgPreset == "bg_card_200",
-                            onClick = { onConfigChange(config.copy(bgPreset = "bg_card_200", customBgPath = null)) }
-                        )
-                        PresetChip(
-                            label = "قالب فئة 500",
-                            isSelected = config.bgPreset == "bg_card_500",
-                            onClick = { onConfigChange(config.copy(bgPreset = "bg_card_500", customBgPath = null)) }
-                        )
-                    }
-                }
-            }
-        }
-
-        // 3. إطار الكرت
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (boxWidthPx - (elem.xMm * scaleX)).roundToInt(),
+                                (elem.yMm * scaleY).roundToInt()
+                            )
+                        },
+                    horizontalAlignment = Alignment.End
                 ) {
+                    if (elem.showTitle && elem.titleText.isNotEmpty()) {
+                        Text(
+                            text = elem.titleText,
+                            fontSize = (elem.fontSize * 0.65f).sp,
+                            color = color.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = CairoFontFamily,
+                            textAlign = TextAlign.Right
+                        )
+                    }
                     Text(
-                        text = "🔲 إطار وحدود الكرت",
+                        text = displayText,
+                        fontSize = elem.fontSize.sp,
+                        color = color,
+                        fontWeight = if (elem.isBold) FontWeight.Bold else FontWeight.Normal,
+                        fontStyle = if (elem.isItalic) FontStyle.Italic else FontStyle.Normal,
                         fontFamily = CairoFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF0F172A)
-                    )
-                    Switch(
-                        checked = config.borderEnabled,
-                        onCheckedChange = { onConfigChange(config.copy(borderEnabled = it)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
-                    )
-                }
-
-                if (config.borderEnabled) {
-                    Text(
-                        text = "سمك الإطار: ${String.format("%.2f", config.borderSizeMm)} مم",
-                        fontFamily = CairoFontFamily,
-                        fontSize = 12.sp
-                    )
-                    Slider(
-                        value = config.borderSizeMm,
-                        onValueChange = { onConfigChange(config.copy(borderSizeMm = it)) },
-                        valueRange = 0.1f..1.5f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        textAlign = TextAlign.Right
                     )
                 }
             }
         }
 
-        // 4. ملاحظة وترقيم الصفحة
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "📝 تذييل الصفحة والملاحظات",
-                    fontFamily = CairoFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color(0xFF0F172A)
+        // 1. Username / Real Code (Draggable directly on card!)
+        if (config.usernameConfig.visible) {
+            DrawPreviewText(
+                elem = config.usernameConfig,
+                displayText = displayUser.username,
+                isDraggable = true,
+                onDragEnd = onUsernamePositionChange
+            )
+        }
+
+        // 2. Title
+        if (config.titleConfig.visible) {
+            DrawPreviewText(
+                elem = config.titleConfig,
+                displayText = config.titleConfig.titleText
+            )
+        }
+
+        // 3. Password
+        if (config.passwordConfig.visible) {
+            val pText = if (displayUser.password.isNotEmpty()) displayUser.password else displayUser.username
+            DrawPreviewText(
+                elem = config.passwordConfig,
+                displayText = pText
+            )
+        }
+
+        // 4. Price
+        if (config.priceConfig.visible) {
+            val prText = if (config.priceConfig.titleText.isNotEmpty()) {
+                config.priceConfig.titleText
+            } else if (displayBatch.pricePerCard > 0) {
+                "${displayBatch.pricePerCard} ر.ي"
+            } else {
+                "500 ر.ي"
+            }
+            DrawPreviewText(
+                elem = config.priceConfig,
+                displayText = prText
+            )
+        }
+
+        // 5. Profile Name
+        if (config.profileConfig.visible) {
+            val pfText = if (config.profileConfig.titleText.isNotEmpty()) {
+                config.profileConfig.titleText
+            } else if (displayUser.profile.isNotEmpty()) {
+                displayUser.profile
+            } else {
+                displayBatch.profileName
+            }
+            DrawPreviewText(
+                elem = config.profileConfig,
+                displayText = pfText
+            )
+        }
+
+        // 6. Payment / Batch
+        if (config.paymentConfig.visible) {
+            val payText = if (config.paymentConfig.titleText.isNotEmpty()) {
+                config.paymentConfig.titleText
+            } else {
+                displayBatch.batchId
+            }
+            DrawPreviewText(
+                elem = config.paymentConfig,
+                displayText = payText
+            )
+        }
+
+        // 7. Serial
+        if (config.serialConfig.visible) {
+            val sText = if (config.serialConfig.titleText.isNotEmpty()) {
+                config.serialConfig.titleText
+            } else {
+                displayUser.username.takeLast(4)
+            }
+            DrawPreviewText(
+                elem = config.serialConfig,
+                displayText = sText
+            )
+        }
+
+        // 8. POS
+        if (config.posConfig.visible) {
+            val posText = if (config.posConfig.titleText.isNotEmpty()) {
+                config.posConfig.titleText
+            } else {
+                "المركز الرئيسي"
+            }
+            DrawPreviewText(
+                elem = config.posConfig,
+                displayText = posText
+            )
+        }
+
+        // 9. Barcode
+        if (config.barcodeConfig.visible) {
+            val bCfg = config.barcodeConfig
+            val bwPx = (bCfg.widthMm * scaleX).coerceAtLeast(20f)
+            val bhPx = (bCfg.heightMm * scaleY).coerceAtLeast(14f)
+            val density = LocalDensity.current
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (boxWidthPx - (bCfg.xMm * scaleX) - bwPx).roundToInt(),
+                            (bCfg.yMm * scaleY).roundToInt()
+                        )
+                    }
+                    .size(
+                        width = with(density) { (bwPx / density.density).dp },
+                        height = with(density) { (bhPx / density.density).dp }
+                    )
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White)
+                    .padding(2.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.QrCode,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.fillMaxSize()
                 )
+            }
+        }
 
-                // Page note switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "إظهار ملاحظة الصفحة", fontFamily = CairoFontFamily, fontSize = 13.sp)
-                    Switch(
-                        checked = config.pageNoteEnabled,
-                        onCheckedChange = { onConfigChange(config.copy(pageNoteEnabled = it)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
+        // 10. Logo
+        if (config.logoConfig.visible) {
+            val lCfg = config.logoConfig
+            val lwPx = (lCfg.widthMm * scaleX).coerceAtLeast(16f)
+            val lhPx = (lCfg.heightMm * scaleY).coerceAtLeast(16f)
+            val density = LocalDensity.current
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (boxWidthPx - (lCfg.xMm * scaleX) - lwPx).roundToInt(),
+                            (lCfg.yMm * scaleY).roundToInt()
+                        )
+                    }
+                    .size(
+                        width = with(density) { (lwPx / density.density).dp },
+                        height = with(density) { (lhPx / density.density).dp }
                     )
-                }
-
-                if (config.pageNoteEnabled) {
-                    OutlinedTextField(
-                        value = config.pageNoteText,
-                        onValueChange = { onConfigChange(config.copy(pageNoteText = it)) },
-                        label = { Text("نص الملاحظة في أسفل الصفحة", fontFamily = CairoFontFamily) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-
-                Divider(color = Color(0xFFE2E8F0))
-
-                // Page numbering switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "إظهار ترقيم الصفحات", fontFamily = CairoFontFamily, fontSize = 13.sp)
-                    Switch(
-                        checked = config.pageNumberingEnabled,
-                        onCheckedChange = { onConfigChange(config.copy(pageNumberingEnabled = it)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
-                    )
-                }
+                    .clip(RoundedCornerShape(3.dp))
+                    .border(1.dp, Color.Gray, RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "LOGO",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.DarkGray
+                )
             }
         }
     }
 }
 
 /**
- * Reusable Independent Element Editor Card
+ * Independent Element Editor Card with Exact Millimeter (mm) Coordinates, D-Pad, 9 Predefined Presets, Font Size, and Colors
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun IndependentElementEditorCard(
+fun MmElementEditorCard(
     title: String,
     icon: String,
     config: CardElementConfig,
+    cardWidthMm: Float,
+    cardHeightMm: Float,
     defaultTitle: String,
     onConfigChange: (CardElementConfig) -> Unit,
     isExpanded: Boolean,
@@ -1326,7 +1398,6 @@ fun IndependentElementEditorCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Visibility switch
                     Switch(
                         checked = config.visible,
                         onCheckedChange = { onConfigChange(config.copy(visible = it)) },
@@ -1355,7 +1426,7 @@ fun IndependentElementEditorCard(
                 ) {
                     Divider(color = Color(0xFFE2E8F0))
 
-                    // Title Toggle & Text
+                    // Title Toggle & Custom Text
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1378,75 +1449,160 @@ fun IndependentElementEditorCard(
                         OutlinedTextField(
                             value = config.titleText,
                             onValueChange = { onConfigChange(config.copy(titleText = it)) },
-                            label = { Text("نص العنوان", fontFamily = CairoFontFamily) },
+                            label = { Text("نص التسمية أو القيمة", fontFamily = CairoFontFamily) },
                             placeholder = { Text(defaultTitle) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp)
                         )
                     }
 
-                    // Position Controls (X and Y with D-Pad buttons)
-                    Text(
-                        text = "📍 موضع العنصر على الكرت:",
-                        fontFamily = CairoFontFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0C5A60)
-                    )
-
-                    // Horizontal X
+                    // --- POSITION CONTROLS (IN EXACT MILLIMETERS) ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "أفقي (X):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
-                        IconButton(
-                            onClick = { onConfigChange(config.copy(xPercent = (config.xPercent - 0.02f).coerceIn(0f, 1f))) },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = null)
-                        }
-                        Slider(
-                            value = config.xPercent,
-                            onValueChange = { onConfigChange(config.copy(xPercent = it)) },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.weight(1f),
-                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        Text(
+                            text = "📍 موضع العنصر بالمليمتر (مم):",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0C5A60)
                         )
-                        IconButton(
-                            onClick = { onConfigChange(config.copy(xPercent = (config.xPercent + 0.02f).coerceIn(0f, 1f))) },
-                            modifier = Modifier.size(32.dp)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF0C5A60).copy(alpha = 0.08f)
                         ) {
-                            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null)
+                            Text(
+                                text = "س = ${config.xMm} مم | ص = ${config.yMm} مم",
+                                fontFamily = CairoFontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0C5A60),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
                     }
 
-                    // Vertical Y
+                    // 9 Predefined Positioning Presets Matrix
+                    Text("المواضع السريعة الجاهزة:", fontFamily = CairoFontFamily, fontSize = 11.sp, color = Color(0xFF64748B))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            PresetPositionButton("↗ أعلى يمين", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = 4f, yMm = 3f))
+                            }
+                            PresetPositionButton("↑ أعلى وسط", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = cardWidthMm / 2f, yMm = 3f))
+                            }
+                            PresetPositionButton("↖ أعلى يسار", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = (cardWidthMm - 20f).coerceAtLeast(4f), yMm = 3f))
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            PresetPositionButton("→ وسط يمين", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = 4f, yMm = cardHeightMm / 2f - 4f))
+                            }
+                            PresetPositionButton("🎯 المركز", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = cardWidthMm / 2f, yMm = cardHeightMm / 2f - 4f))
+                            }
+                            PresetPositionButton("← وسط يسار", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = (cardWidthMm - 20f).coerceAtLeast(4f), yMm = cardHeightMm / 2f - 4f))
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            PresetPositionButton("↘ أسفل يمين", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = 4f, yMm = (cardHeightMm - 8f).coerceAtLeast(2f)))
+                            }
+                            PresetPositionButton("↓ أسفل وسط", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = cardWidthMm / 2f, yMm = (cardHeightMm - 8f).coerceAtLeast(2f)))
+                            }
+                            PresetPositionButton("↙ أسفل يسار", Modifier.weight(1f)) {
+                                onConfigChange(config.copy(xMm = (cardWidthMm - 20f).coerceAtLeast(4f), yMm = (cardHeightMm - 8f).coerceAtLeast(2f)))
+                            }
+                        }
+                    }
+
+                    // Stepper for X (Horizontal from right)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(text = "رأسي (Y):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
-                        IconButton(
-                            onClick = { onConfigChange(config.copy(yPercent = (config.yPercent - 0.02f).coerceIn(0f, 1f))) },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = null)
-                        }
+                        Text(text = "أفقي (X):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
+                        StepButton("-1") { onConfigChange(config.copy(xMm = (config.xMm - 1f).coerceIn(0f, cardWidthMm))) }
+                        StepButton("-0.5") { onConfigChange(config.copy(xMm = (config.xMm - 0.5f).coerceIn(0f, cardWidthMm))) }
                         Slider(
-                            value = config.yPercent,
-                            onValueChange = { onConfigChange(config.copy(yPercent = it)) },
-                            valueRange = 0f..1f,
+                            value = config.xMm,
+                            onValueChange = { onConfigChange(config.copy(xMm = (it * 2).roundToInt() / 2f)) },
+                            valueRange = 0f..cardWidthMm,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
                         )
-                        IconButton(
-                            onClick = { onConfigChange(config.copy(yPercent = (config.yPercent + 0.02f).coerceIn(0f, 1f))) },
-                            modifier = Modifier.size(32.dp)
+                        StepButton("+0.5") { onConfigChange(config.copy(xMm = (config.xMm + 0.5f).coerceIn(0f, cardWidthMm))) }
+                        StepButton("+1") { onConfigChange(config.copy(xMm = (config.xMm + 1f).coerceIn(0f, cardWidthMm))) }
+                    }
+
+                    // Stepper for Y (Vertical from top)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(text = "رأسي (Y):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
+                        StepButton("-1") { onConfigChange(config.copy(yMm = (config.yMm - 1f).coerceIn(0f, cardHeightMm))) }
+                        StepButton("-0.5") { onConfigChange(config.copy(yMm = (config.yMm - 0.5f).coerceIn(0f, cardHeightMm))) }
+                        Slider(
+                            value = config.yMm,
+                            onValueChange = { onConfigChange(config.copy(yMm = (it * 2).roundToInt() / 2f)) },
+                            valueRange = 0f..cardHeightMm,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                        StepButton("+0.5") { onConfigChange(config.copy(yMm = (config.yMm + 0.5f).coerceIn(0f, cardHeightMm))) }
+                        StepButton("+1") { onConfigChange(config.copy(yMm = (config.yMm + 1f).coerceIn(0f, cardHeightMm))) }
+                    }
+
+                    // Directional D-Pad
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF1F5F9),
+                            modifier = Modifier.padding(4.dp)
                         ) {
-                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
+                            Row(
+                                modifier = Modifier.padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { onConfigChange(config.copy(xMm = (config.xMm + 1f).coerceIn(0f, cardWidthMm))) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "يمين")
+                                }
+                                IconButton(
+                                    onClick = { onConfigChange(config.copy(yMm = (config.yMm - 1f).coerceIn(0f, cardHeightMm))) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "أعلى")
+                                }
+                                IconButton(
+                                    onClick = { onConfigChange(config.copy(yMm = (config.yMm + 1f).coerceIn(0f, cardHeightMm))) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "أسفل")
+                                }
+                                IconButton(
+                                    onClick = { onConfigChange(config.copy(xMm = (config.xMm - 1f).coerceIn(0f, cardWidthMm))) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "يسار")
+                                }
+                            }
                         }
                     }
 
@@ -1457,28 +1613,39 @@ fun IndependentElementEditorCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "حجم الخط: ${config.fontSize.toInt()} sp",
+                            text = "حجم الخط: ${config.fontSize.toInt()} pt",
                             fontFamily = CairoFontFamily,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "خط عريض (Bold)", fontFamily = CairoFontFamily, fontSize = 11.sp)
-                            Checkbox(
-                                checked = config.isBold,
-                                onCheckedChange = { onConfigChange(config.copy(isBold = it)) },
-                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF0C5A60))
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "عريض", fontFamily = CairoFontFamily, fontSize = 11.sp)
+                                Checkbox(
+                                    checked = config.isBold,
+                                    onCheckedChange = { onConfigChange(config.copy(isBold = it)) },
+                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF0C5A60))
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "مائل", fontFamily = CairoFontFamily, fontSize = 11.sp)
+                                Checkbox(
+                                    checked = config.isItalic,
+                                    onCheckedChange = { onConfigChange(config.copy(isItalic = it)) },
+                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF0C5A60))
+                                )
+                            }
                         }
                     }
 
                     Slider(
                         value = config.fontSize,
-                        onValueChange = { onConfigChange(config.copy(fontSize = it)) },
-                        valueRange = 6f..24f,
+                        onValueChange = { onConfigChange(config.copy(fontSize = it.roundToInt().toFloat())) },
+                        valueRange = 6f..26f,
                         colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
                     )
 
-                    // Color Picker Palette
+                    // Color Palette
                     Text(
                         text = "لون الخط:",
                         fontFamily = CairoFontFamily,
@@ -1491,7 +1658,7 @@ fun IndependentElementEditorCard(
                         "#0C5A60" to "كحلي فيروزي",
                         "#0284C7" to "أزرق سماوي",
                         "#10B981" to "أخضر زمردي",
-                        "#D97706" to "ذهبي/برتقالي",
+                        "#D97706" to "ذهبي برتقالي",
                         "#EF4444" to "أحمر",
                         "#FFFFFF" to "أبيض"
                     )
@@ -1521,11 +1688,15 @@ fun IndependentElementEditorCard(
 }
 
 /**
- * QR / Barcode Independent Editor Card
+ * Barcode / Logo Independent Editor Card
  */
 @Composable
-fun IndependentQrEditorCard(
+fun MmBarcodeEditorCard(
     config: CardElementConfig,
+    cardWidthMm: Float,
+    cardHeightMm: Float,
+    title: String = "الباركود / رمز الاستجابة السريعة (QR Code)",
+    icon: String = "📱",
     onConfigChange: (CardElementConfig) -> Unit,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit
@@ -1548,10 +1719,10 @@ fun IndependentQrEditorCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(text = "📱", fontSize = 16.sp)
+                    Text(text = icon, fontSize = 16.sp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "الباركود / رمز الاستجابة السريعة (QR Code)",
+                        text = title,
                         fontFamily = CairoFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -1588,7 +1759,7 @@ fun IndependentQrEditorCard(
                     Divider(color = Color(0xFFE2E8F0))
 
                     Text(
-                        text = "📍 موضع الباركود على الكرت:",
+                        text = "📍 موضع العنصر بالمليمتر (س = ${config.xMm} مم | ص = ${config.yMm} مم):",
                         fontFamily = CairoFontFamily,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -1603,9 +1774,9 @@ fun IndependentQrEditorCard(
                     ) {
                         Text(text = "أفقي (X):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
                         Slider(
-                            value = config.xPercent,
-                            onValueChange = { onConfigChange(config.copy(xPercent = it)) },
-                            valueRange = 0f..1f,
+                            value = config.xMm,
+                            onValueChange = { onConfigChange(config.copy(xMm = (it * 2).roundToInt() / 2f)) },
+                            valueRange = 0f..cardWidthMm,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
                         )
@@ -1619,26 +1790,54 @@ fun IndependentQrEditorCard(
                     ) {
                         Text(text = "رأسي (Y):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
                         Slider(
-                            value = config.yPercent,
-                            onValueChange = { onConfigChange(config.copy(yPercent = it)) },
-                            valueRange = 0f..1f,
+                            value = config.yMm,
+                            onValueChange = { onConfigChange(config.copy(yMm = (it * 2).roundToInt() / 2f)) },
+                            valueRange = 0f..cardHeightMm,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
                         )
                     }
 
-                    // Width / Height in mm
-                    Text(
-                        text = "حجم الباركود: ${config.widthMm.toInt()} مم",
-                        fontFamily = CairoFontFamily,
-                        fontSize = 12.sp
-                    )
-                    Slider(
-                        value = config.widthMm,
-                        onValueChange = { onConfigChange(config.copy(widthMm = it, heightMm = it)) },
-                        valueRange = 6f..30f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
-                    )
+                    // Dimensions (Width and Height in mm)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "العرض: ${config.widthMm.toInt()} مم",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Slider(
+                            value = config.widthMm,
+                            onValueChange = { onConfigChange(config.copy(widthMm = it.roundToInt().toFloat())) },
+                            valueRange = 6f..40f,
+                            modifier = Modifier.weight(2f),
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "الارتفاع: ${config.heightMm.toInt()} مم",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Slider(
+                            value = config.heightMm,
+                            onValueChange = { onConfigChange(config.copy(heightMm = it.roundToInt().toFloat())) },
+                            valueRange = 6f..40f,
+                            modifier = Modifier.weight(2f),
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                    }
                 }
             }
         }
@@ -1646,122 +1845,417 @@ fun IndependentQrEditorCard(
 }
 
 /**
- * Point of Sale (POS) Independent Editor Card
+ * Page & Background Specifications Editor (TAB 1)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun IndependentPosEditorCard(
-    config: CardElementConfig,
-    onConfigChange: (CardElementConfig) -> Unit,
-    isExpanded: Boolean,
-    onToggleExpand: () -> Unit
+fun CardPageAndBackgroundSettings(
+    config: CardTemplateConfig,
+    onConfigChange: (CardTemplateConfig) -> Unit,
+    customBgBitmap: Bitmap?,
+    onPickCustomImage: () -> Unit,
+    onClearCustomBg: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(text = "🏪", fontSize = 16.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "نقطة البيع (POS)",
-                        fontFamily = CairoFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = if (config.visible) Color(0xFF0F172A) else Color(0xFF94A3B8)
-                    )
-                }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        // 1. أبعاد وتوزيع شبكة الكروت على ورقة A4
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "📄 أبعاد وتوزيع شبكة الكروت (A4)",
+                    fontFamily = CairoFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color(0xFF0F172A)
+                )
+
+                // Auto Fit Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("ضبط تلقائي لأبعاد الكرت على A4", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("يحسب العرض والارتفاع تلقائياً بحسب عدد الصفوف والأعمدة", fontFamily = CairoFontFamily, fontSize = 11.sp, color = Color.Gray)
+                    }
                     Switch(
-                        checked = config.visible,
-                        onCheckedChange = { onConfigChange(config.copy(visible = it)) },
+                        checked = config.autoFitA4,
+                        onCheckedChange = { onConfigChange(config.copy(autoFitA4 = it)) },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = null,
-                        tint = Color(0xFF64748B)
-                    )
                 }
-            }
 
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Divider(color = Color(0xFFE2E8F0))
+
+                // Columns & Rows
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Divider(color = Color(0xFFE2E8F0))
-
-                    OutlinedTextField(
-                        value = config.titleText,
-                        onValueChange = { onConfigChange(config.copy(titleText = it)) },
-                        label = { Text("نص نقطة البيع على الكرت", fontFamily = CairoFontFamily) },
-                        placeholder = { Text("نقطة البيع: المركز الرئيسي") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    // Position Controls
-                    Text(
-                        text = "📍 موضع نقطة البيع على الكرت:",
-                        fontFamily = CairoFontFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0C5A60)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(text = "أفقي (X):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "الأعمدة: ${config.columns}",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Slider(
-                            value = config.xPercent,
-                            onValueChange = { onConfigChange(config.copy(xPercent = it)) },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.weight(1f),
+                            value = config.columns.toFloat(),
+                            onValueChange = { onConfigChange(config.copy(columns = it.toInt())) },
+                            valueRange = 1f..6f,
+                            steps = 4,
                             colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(text = "رأسي (Y):", fontFamily = CairoFontFamily, fontSize = 12.sp, modifier = Modifier.width(60.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "الصفوف: ${config.rows}",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Slider(
-                            value = config.yPercent,
-                            onValueChange = { onConfigChange(config.copy(yPercent = it)) },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.weight(1f),
+                            value = config.rows.toFloat(),
+                            onValueChange = { onConfigChange(config.copy(rows = it.toInt())) },
+                            valueRange = 2f..25f,
+                            steps = 22,
                             colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                    }
+                }
+
+                // Margins
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "هامش أفقي: ${config.horizontalMarginMm.toInt()} مم",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp
+                        )
+                        Slider(
+                            value = config.horizontalMarginMm,
+                            onValueChange = { onConfigChange(config.copy(horizontalMarginMm = it.roundToInt().toFloat())) },
+                            valueRange = 0f..15f,
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "هامش رأسي: ${config.verticalMarginMm.toInt()} مم",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp
+                        )
+                        Slider(
+                            value = config.verticalMarginMm,
+                            onValueChange = { onConfigChange(config.copy(verticalMarginMm = it.roundToInt().toFloat())) },
+                            valueRange = 0f..15f,
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                        )
+                    }
+                }
+
+                // Summary badge
+                val totalCards = config.columns * config.rows
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF0C5A60).copy(alpha = 0.08f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "إجمالي الكروت في الصفحة الواحدة:",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 12.sp,
+                            color = Color(0xFF0C5A60)
+                        )
+                        Text(
+                            text = "$totalCards كرت (${config.columns} × ${config.rows})",
+                            fontFamily = CairoFontFamily,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0C5A60)
                         )
                     }
                 }
             }
         }
+
+        // 2. خلفية الكرت (رفع صورة من الهاتف + قوالب ملونة جاهزة)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🎨 خلفية الكرت",
+                        fontFamily = CairoFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                    Switch(
+                        checked = config.backgroundEnabled,
+                        onCheckedChange = { onConfigChange(config.copy(backgroundEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
+                    )
+                }
+
+                if (config.backgroundEnabled) {
+                    Text(
+                        text = "اختر قالب الخلفية أو ارفع صورة خاصة:",
+                        fontFamily = CairoFontFamily,
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PresetChip(
+                            label = "كرت فئة 100 ر.ي (أزرق)",
+                            isSelected = config.bgPreset == "bg_card_100",
+                            onClick = {
+                                onClearCustomBg()
+                                onConfigChange(config.copy(bgPreset = "bg_card_100", customBgPath = null))
+                            }
+                        )
+                        PresetChip(
+                            label = "كرت فئة 200 ر.ي (أخضر)",
+                            isSelected = config.bgPreset == "bg_card_200",
+                            onClick = {
+                                onClearCustomBg()
+                                onConfigChange(config.copy(bgPreset = "bg_card_200", customBgPath = null))
+                            }
+                        )
+                        PresetChip(
+                            label = "كرت فئة 500 ر.ي (بنفسجي)",
+                            isSelected = config.bgPreset == "bg_card_500",
+                            onClick = {
+                                onClearCustomBg()
+                                onConfigChange(config.copy(bgPreset = "bg_card_500", customBgPath = null))
+                            }
+                        )
+                        PresetChip(
+                            label = "بدون خلفية (أبيض)",
+                            isSelected = config.bgPreset == "none",
+                            onClick = {
+                                onClearCustomBg()
+                                onConfigChange(config.copy(bgPreset = "none", customBgPath = null))
+                            }
+                        )
+                    }
+
+                    // Upload Custom Image Button
+                    Button(
+                        onClick = onPickCustomImage,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                    ) {
+                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (customBgBitmap != null) "تغيير الصورة المخصصة المرفوعة" else "رفع صورة خلفية خاصة من الهاتف",
+                            fontFamily = CairoFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. إطار الكرت والحدود
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🔲 إطار وحدود الكرت (Border)",
+                        fontFamily = CairoFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                    Switch(
+                        checked = config.borderEnabled,
+                        onCheckedChange = { onConfigChange(config.copy(borderEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
+                    )
+                }
+
+                if (config.borderEnabled) {
+                    Text(
+                        text = "سماكة الإطار: ${config.borderSizeMm} مم",
+                        fontFamily = CairoFontFamily,
+                        fontSize = 12.sp
+                    )
+                    Slider(
+                        value = config.borderSizeMm,
+                        onValueChange = { onConfigChange(config.copy(borderSizeMm = (it * 10).roundToInt() / 10f)) },
+                        valueRange = 0.2f..3.0f,
+                        colors = SliderDefaults.colors(thumbColor = Color(0xFF0C5A60), activeTrackColor = Color(0xFF0C5A60))
+                    )
+                }
+            }
+        }
+
+        // 4. ملاحظة أسفل الصفحة وترقيم الصفحات
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "ملاحظة في أسفل الورقة", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Switch(
+                        checked = config.pageNoteEnabled,
+                        onCheckedChange = { onConfigChange(config.copy(pageNoteEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
+                    )
+                }
+
+                if (config.pageNoteEnabled) {
+                    OutlinedTextField(
+                        value = config.pageNoteText,
+                        onValueChange = { onConfigChange(config.copy(pageNoteText = it)) },
+                        label = { Text("نص الملاحظة في أسفل الصفحة", fontFamily = CairoFontFamily) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+
+                Divider(color = Color(0xFFE2E8F0))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "إظهار ترقيم الصفحات (1/X)", fontFamily = CairoFontFamily, fontSize = 13.sp)
+                    Switch(
+                        checked = config.pageNumberingEnabled,
+                        onCheckedChange = { onConfigChange(config.copy(pageNumberingEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0C5A60))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PresetPositionButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = Color(0xFFF1F5F9),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = modifier.clickable { onClick() }
+    ) {
+        Text(
+            text = label,
+            fontFamily = CairoFontFamily,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF334155),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp)
+        )
+    }
+}
+
+@Composable
+fun StepButton(
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = Color(0xFFE2E8F0),
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Text(
+            text = label,
+            fontFamily = CairoFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1E293B),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+fun DefaultVoucherBoxVisual() {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "📶 VIP",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 6.dp)
+        )
+
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = Color.White,
+            modifier = Modifier
+                .weight(1f)
+                .height(30.dp)
+                .padding(horizontal = 8.dp)
+        ) {}
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color.White,
+            modifier = Modifier
+                .width(42.dp)
+                .height(42.dp)
+        ) {}
     }
 }
 

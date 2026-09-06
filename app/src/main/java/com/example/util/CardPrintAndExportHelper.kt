@@ -36,6 +36,8 @@ data class CardElementConfig(
     val visible: Boolean = true,
     val showTitle: Boolean = false,
     val titleText: String = "",
+    val xMm: Float = 4f,
+    val yMm: Float = 4f,
     val xPercent: Float = 0.5f,
     val yPercent: Float = 0.5f,
     val fontSize: Float = 10f,
@@ -49,65 +51,139 @@ data class CardElementConfig(
 data class CardTemplateConfig(
     val templateName: String = "افتراضي",
     val columns: Int = 3,
-    val rows: Int = 10,
+    val rows: Int = 17,
     val autoFitA4: Boolean = true,
-    val horizontalMarginMm: Float = 1.0f,
-    val verticalMarginMm: Float = 1.0f,
+    val horizontalMarginMm: Float = 0.0f,
+    val verticalMarginMm: Float = 0.0f,
+    val pageMarginMm: Float = 5.0f,
+    val cardWidthMm: Float = 65.0f,
+    val cardHeightMm: Float = 15.0f,
+    val userManagerPackageId: String = "",
+    val hotspotPackageId: String = "",
     val backgroundEnabled: Boolean = true,
     val bgPreset: String = "bg_card_100",
     val customBgPath: String? = null,
     val borderEnabled: Boolean = true,
     val borderSizeMm: Float = 0.35f,
     val borderColorHex: String = "#000000",
-    val pageNoteEnabled: Boolean = true,
+    val pageNoteEnabled: Boolean = false,
     val pageNoteText: String = "أهلاً بكم في شبكة ABO TALAL VIP",
-    val pageNoteX: Float = 50f,
-    val pageNoteY: Float = 98f,
-    val pageNoteSize: Float = 9f,
+    val pageNoteX: Float = 40f,
+    val pageNoteY: Float = 6f,
+    val pageNoteSize: Float = 10f,
     val pageNoteColorHex: String = "#0C5A60",
-    val pageNumberingEnabled: Boolean = true,
+    val pageNumberingEnabled: Boolean = false,
     val pageNumberingText: String = "{page}",
+    val digits: Int = 10,
+    val charset: String = "أرقام فقط",
+    val moveStep: Float = 0.5f,
+    val showUsername: Boolean = true,
     // Independent Elements:
     val usernameConfig: CardElementConfig = CardElementConfig(
         visible = true,
-        showTitle = true,
-        titleText = "رمز الدخول ↓",
+        showTitle = false,
+        titleText = "",
+        xMm = 4f,
+        yMm = 4f,
         xPercent = 0.50f,
         yPercent = 0.42f,
-        fontSize = 12f,
+        fontSize = 11f,
         isBold = true,
         colorHex = "#0F172A"
+    ),
+    val titleConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        showTitle = false,
+        titleText = "ABO TALAL VIP",
+        xMm = 4f,
+        yMm = 2f,
+        fontSize = 8f,
+        isBold = true,
+        colorHex = "#0C5A60"
     ),
     val passwordConfig: CardElementConfig = CardElementConfig(
         visible = false,
-        showTitle = true,
-        titleText = "كلمة المرور:",
+        showTitle = false,
+        titleText = "",
+        xMm = 34f,
+        yMm = 4f,
         xPercent = 0.50f,
         yPercent = 0.65f,
-        fontSize = 9.5f,
-        isBold = true,
+        fontSize = 10f,
+        isBold = false,
         colorHex = "#0F172A"
     ),
     val priceConfig: CardElementConfig = CardElementConfig(
-        visible = true,
-        showTitle = true,
-        titleText = "ريال",
+        visible = false,
+        showTitle = false,
+        titleText = "500 ر.ي",
+        xMm = 20f,
+        yMm = 10f,
         xPercent = 0.88f,
         yPercent = 0.50f,
-        fontSize = 13f,
+        fontSize = 9f,
         isBold = true,
         colorHex = "#0C5A60"
     ),
     val profileConfig: CardElementConfig = CardElementConfig(
-        visible = true,
+        visible = false,
         showTitle = false,
         titleText = "الباقة",
+        xMm = 25f,
+        yMm = 8f,
         xPercent = 0.50f,
         yPercent = 0.82f,
         fontSize = 8f,
         isBold = true,
         colorHex = "#475569"
     ),
+    val paymentConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        showTitle = false,
+        titleText = "",
+        xMm = 4f,
+        yMm = 10f,
+        fontSize = 8f,
+        isBold = false,
+        colorHex = "#64748B"
+    ),
+    val serialConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        showTitle = false,
+        titleText = "",
+        xMm = 34f,
+        yMm = 10f,
+        xPercent = 0.15f,
+        yPercent = 0.90f,
+        fontSize = 8f,
+        isBold = false,
+        colorHex = "#64748B"
+    ),
+    val posConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        showTitle = false,
+        titleText = "",
+        xMm = 4f,
+        yMm = 12f,
+        fontSize = 8f,
+        isBold = false,
+        colorHex = "#64748B"
+    ),
+    val barcodeConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        xMm = 44f,
+        yMm = 3f,
+        widthMm = 18f,
+        heightMm = 8f
+    ),
+    val logoConfig: CardElementConfig = CardElementConfig(
+        visible = false,
+        xMm = 4f,
+        yMm = 8f,
+        widthMm = 10f,
+        heightMm = 10f
+    ),
+    val logoUrl: String? = null,
     val validityConfig: CardElementConfig = CardElementConfig(
         visible = false,
         showTitle = true,
@@ -139,16 +215,6 @@ data class CardTemplateConfig(
         widthMm = 12f,
         heightMm = 12f
     ),
-    val serialConfig: CardElementConfig = CardElementConfig(
-        visible = false,
-        showTitle = true,
-        titleText = "تسلسلي:",
-        xPercent = 0.15f,
-        yPercent = 0.90f,
-        fontSize = 6.5f,
-        isBold = false,
-        colorHex = "#64748B"
-    ),
     val batchConfig: CardElementConfig = CardElementConfig(
         visible = false,
         showTitle = true,
@@ -158,146 +224,201 @@ data class CardTemplateConfig(
         fontSize = 6.5f,
         isBold = false,
         colorHex = "#64748B"
-    ),
-    val posConfig: CardElementConfig = CardElementConfig(
-        visible = false,
-        showTitle = false,
-        titleText = "نقطة البيع: المركز الرئيسي",
-        xPercent = 0.50f,
-        yPercent = 0.95f,
-        fontSize = 6.5f,
-        isBold = false,
-        colorHex = "#64748B"
     )
 )
 
 object CardPrintAndExportHelper {
 
+    fun getTemplatesList(context: Context): List<String> {
+        val prefs = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
+        val defaultList = listOf("افتراضي", "كروت_فئة_100", "كروت_فئة_200", "كروت_فئة_500", "تصميم_مخصص_1")
+        val saved = prefs.getStringSet("all_templates_set", null)
+        return if (saved.isNullOrEmpty()) {
+            defaultList
+        } else {
+            saved.toList().sorted()
+        }
+    }
+
+    fun saveTemplatesList(context: Context, list: List<String>) {
+        val prefs = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putStringSet("all_templates_set", list.toSet()).apply()
+    }
+
+    fun deleteTemplate(context: Context, templateName: String) {
+        val prefs = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
+        val current = getTemplatesList(context).toMutableList()
+        current.remove(templateName)
+        saveTemplatesList(context, current)
+        // Also clear template specific keys
+        val editor = prefs.edit()
+        val allKeys = prefs.all.keys.filter { it.startsWith("${templateName}_") }
+        allKeys.forEach { editor.remove(it) }
+        editor.apply()
+    }
+
     fun loadTemplateConfig(context: Context, templateName: String): CardTemplateConfig {
         val prefs = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
         val p = templateName
+        val cardWMm = prefs.getFloat("${p}_card_w_mm", 65.0f)
+        val cardHMm = prefs.getFloat("${p}_card_h_mm", 15.0f)
+
         return CardTemplateConfig(
             templateName = templateName,
             columns = prefs.getInt("${p}_columns", 3),
-            rows = prefs.getInt("${p}_rows", 10),
+            rows = prefs.getInt("${p}_rows", 17),
             autoFitA4 = prefs.getBoolean("${p}_auto_fit", true),
-            horizontalMarginMm = prefs.getFloat("${p}_h_margin", 1.0f),
-            verticalMarginMm = prefs.getFloat("${p}_v_margin", 1.0f),
+            horizontalMarginMm = prefs.getFloat("${p}_h_margin", 0.0f),
+            verticalMarginMm = prefs.getFloat("${p}_v_margin", 0.0f),
+            pageMarginMm = prefs.getFloat("${p}_page_margin_mm", 5.0f),
+            cardWidthMm = cardWMm,
+            cardHeightMm = cardHMm,
+            userManagerPackageId = prefs.getString("${p}_um_pkg_id", "") ?: "",
+            hotspotPackageId = prefs.getString("${p}_hs_pkg_id", "") ?: "",
             backgroundEnabled = prefs.getBoolean("${p}_bg_enabled", true),
             bgPreset = prefs.getString("${p}_bg_preset", "bg_card_100") ?: "bg_card_100",
             customBgPath = prefs.getString("${p}_custom_bg_path", null),
             borderEnabled = prefs.getBoolean("${p}_border_enabled", true),
             borderSizeMm = prefs.getFloat("${p}_border_size", 0.35f),
             borderColorHex = prefs.getString("${p}_border_color", "#000000") ?: "#000000",
-            pageNoteEnabled = prefs.getBoolean("${p}_page_note_enabled", true),
+            pageNoteEnabled = prefs.getBoolean("${p}_page_note_enabled", false),
             pageNoteText = prefs.getString("${p}_page_note_text", "أهلاً بكم في شبكة ABO TALAL VIP") ?: "أهلاً بكم في شبكة ABO TALAL VIP",
-            pageNoteSize = prefs.getFloat("${p}_page_note_size", 9f),
+            pageNoteX = prefs.getFloat("${p}_page_note_x", 40f),
+            pageNoteY = prefs.getFloat("${p}_page_note_y", 6f),
+            pageNoteSize = prefs.getFloat("${p}_page_note_size", 10f),
             pageNoteColorHex = prefs.getString("${p}_page_note_color", "#0C5A60") ?: "#0C5A60",
-            pageNumberingEnabled = prefs.getBoolean("${p}_page_num_enabled", true),
+            pageNumberingEnabled = prefs.getBoolean("${p}_page_num_enabled", false),
             pageNumberingText = prefs.getString("${p}_page_num_text", "{page}") ?: "{page}",
+            digits = prefs.getInt("${p}_digits", 10),
+            charset = prefs.getString("${p}_charset", "أرقام فقط") ?: "أرقام فقط",
+            moveStep = prefs.getFloat("${p}_move_step", 0.5f),
+            showUsername = prefs.getBoolean("${p}_show_username", true),
             usernameConfig = CardElementConfig(
                 visible = prefs.getBoolean("${p}_user_vis", true),
-                showTitle = prefs.getBoolean("${p}_user_title_on", true),
-                titleText = prefs.getString("${p}_user_title_text", "رمز الدخول ↓") ?: "رمز الدخول ↓",
-                xPercent = prefs.getFloat("${p}_user_x", 0.50f),
-                yPercent = prefs.getFloat("${p}_user_y", 0.42f),
-                fontSize = prefs.getFloat("${p}_user_size", 12f),
+                showTitle = prefs.getBoolean("${p}_user_title_on", false),
+                titleText = prefs.getString("${p}_user_title_text", "") ?: "",
+                xMm = prefs.getFloat("${p}_user_x_mm", 4f),
+                yMm = prefs.getFloat("${p}_user_y_mm", 4f),
+                fontSize = prefs.getFloat("${p}_user_size", 11f),
                 isBold = prefs.getBoolean("${p}_user_bold", true),
+                isItalic = prefs.getBoolean("${p}_user_italic", false),
                 colorHex = prefs.getString("${p}_user_color", "#0F172A") ?: "#0F172A"
+            ),
+            titleConfig = CardElementConfig(
+                visible = prefs.getBoolean("${p}_title_vis", false),
+                showTitle = false,
+                titleText = prefs.getString("${p}_title_text", "ABO TALAL VIP") ?: "ABO TALAL VIP",
+                xMm = prefs.getFloat("${p}_title_x_mm", 4f),
+                yMm = prefs.getFloat("${p}_title_y_mm", 2f),
+                fontSize = prefs.getFloat("${p}_title_size", 8f),
+                isBold = prefs.getBoolean("${p}_title_bold", true),
+                isItalic = prefs.getBoolean("${p}_title_italic", false),
+                colorHex = prefs.getString("${p}_title_color", "#0C5A60") ?: "#0C5A60"
             ),
             passwordConfig = CardElementConfig(
                 visible = prefs.getBoolean("${p}_pass_vis", false),
-                showTitle = prefs.getBoolean("${p}_pass_title_on", true),
-                titleText = prefs.getString("${p}_pass_title_text", "كلمة المرور:") ?: "كلمة المرور:",
-                xPercent = prefs.getFloat("${p}_pass_x", 0.50f),
-                yPercent = prefs.getFloat("${p}_pass_y", 0.65f),
-                fontSize = prefs.getFloat("${p}_pass_size", 9.5f),
-                isBold = prefs.getBoolean("${p}_pass_bold", true),
+                showTitle = prefs.getBoolean("${p}_pass_title_on", false),
+                titleText = prefs.getString("${p}_pass_title_text", "") ?: "",
+                xMm = prefs.getFloat("${p}_pass_x_mm", 34f),
+                yMm = prefs.getFloat("${p}_pass_y_mm", 4f),
+                fontSize = prefs.getFloat("${p}_pass_size", 10f),
+                isBold = prefs.getBoolean("${p}_pass_bold", false),
+                isItalic = prefs.getBoolean("${p}_pass_italic", false),
                 colorHex = prefs.getString("${p}_pass_color", "#0F172A") ?: "#0F172A"
             ),
             priceConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_price_vis", true),
-                showTitle = prefs.getBoolean("${p}_price_title_on", true),
-                titleText = prefs.getString("${p}_price_title_text", "ريال") ?: "ريال",
-                xPercent = prefs.getFloat("${p}_price_x", 0.88f),
-                yPercent = prefs.getFloat("${p}_price_y", 0.50f),
-                fontSize = prefs.getFloat("${p}_price_size", 13f),
+                visible = prefs.getBoolean("${p}_price_vis", false),
+                showTitle = prefs.getBoolean("${p}_price_title_on", false),
+                titleText = prefs.getString("${p}_price_title_text", "500 ر.ي") ?: "500 ر.ي",
+                xMm = prefs.getFloat("${p}_price_x_mm", 20f),
+                yMm = prefs.getFloat("${p}_price_y_mm", 10f),
+                fontSize = prefs.getFloat("${p}_price_size", 9f),
                 isBold = prefs.getBoolean("${p}_price_bold", true),
+                isItalic = prefs.getBoolean("${p}_price_italic", false),
                 colorHex = prefs.getString("${p}_price_color", "#0C5A60") ?: "#0C5A60"
             ),
             profileConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_prof_vis", true),
+                visible = prefs.getBoolean("${p}_prof_vis", false),
                 showTitle = prefs.getBoolean("${p}_prof_title_on", false),
                 titleText = prefs.getString("${p}_prof_title_text", "الباقة") ?: "الباقة",
-                xPercent = prefs.getFloat("${p}_prof_x", 0.50f),
-                yPercent = prefs.getFloat("${p}_prof_y", 0.82f),
+                xMm = prefs.getFloat("${p}_prof_x_mm", 25f),
+                yMm = prefs.getFloat("${p}_prof_y_mm", 8f),
                 fontSize = prefs.getFloat("${p}_prof_size", 8f),
                 isBold = prefs.getBoolean("${p}_prof_bold", true),
+                isItalic = prefs.getBoolean("${p}_prof_italic", false),
                 colorHex = prefs.getString("${p}_prof_color", "#475569") ?: "#475569"
             ),
-            validityConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_val_vis", false),
-                showTitle = prefs.getBoolean("${p}_val_title_on", true),
-                titleText = prefs.getString("${p}_val_title_text", "صلاحية:") ?: "صلاحية:",
-                xPercent = prefs.getFloat("${p}_val_x", 0.25f),
-                yPercent = prefs.getFloat("${p}_val_y", 0.82f),
-                fontSize = prefs.getFloat("${p}_val_size", 7f),
-                colorHex = prefs.getString("${p}_val_color", "#475569") ?: "#475569"
-            ),
-            quotaConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_quota_vis", false),
-                showTitle = prefs.getBoolean("${p}_quota_title_on", true),
-                titleText = prefs.getString("${p}_quota_title_text", "الرصيد:") ?: "الرصيد:",
-                xPercent = prefs.getFloat("${p}_quota_x", 0.75f),
-                yPercent = prefs.getFloat("${p}_quota_y", 0.82f),
-                fontSize = prefs.getFloat("${p}_quota_size", 7f),
-                colorHex = prefs.getString("${p}_quota_color", "#475569") ?: "#475569"
-            ),
-            qrConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_qr_vis", false),
-                xPercent = prefs.getFloat("${p}_qr_x", 0.15f),
-                yPercent = prefs.getFloat("${p}_qr_y", 0.50f),
-                widthMm = prefs.getFloat("${p}_qr_w", 12f),
-                heightMm = prefs.getFloat("${p}_qr_h", 12f)
+            paymentConfig = CardElementConfig(
+                visible = prefs.getBoolean("${p}_payment_vis", false),
+                showTitle = false,
+                titleText = prefs.getString("${p}_payment_text", "") ?: "",
+                xMm = prefs.getFloat("${p}_payment_x_mm", 4f),
+                yMm = prefs.getFloat("${p}_payment_y_mm", 10f),
+                fontSize = prefs.getFloat("${p}_payment_size", 8f),
+                isBold = prefs.getBoolean("${p}_payment_bold", false),
+                isItalic = prefs.getBoolean("${p}_payment_italic", false),
+                colorHex = prefs.getString("${p}_payment_color", "#64748B") ?: "#64748B"
             ),
             serialConfig = CardElementConfig(
                 visible = prefs.getBoolean("${p}_ser_vis", false),
-                showTitle = prefs.getBoolean("${p}_ser_title_on", true),
-                titleText = prefs.getString("${p}_ser_title_text", "تسلسلي:") ?: "تسلسلي:",
-                xPercent = prefs.getFloat("${p}_ser_x", 0.15f),
-                yPercent = prefs.getFloat("${p}_ser_y", 0.90f),
-                fontSize = prefs.getFloat("${p}_ser_size", 6.5f),
+                showTitle = false,
+                titleText = prefs.getString("${p}_ser_title_text", "") ?: "",
+                xMm = prefs.getFloat("${p}_ser_x_mm", 34f),
+                yMm = prefs.getFloat("${p}_ser_y_mm", 10f),
+                fontSize = prefs.getFloat("${p}_ser_size", 8f),
+                isBold = prefs.getBoolean("${p}_ser_bold", false),
+                isItalic = prefs.getBoolean("${p}_ser_italic", false),
                 colorHex = prefs.getString("${p}_ser_color", "#64748B") ?: "#64748B"
-            ),
-            batchConfig = CardElementConfig(
-                visible = prefs.getBoolean("${p}_batch_vis", false),
-                showTitle = prefs.getBoolean("${p}_batch_title_on", true),
-                titleText = prefs.getString("${p}_batch_title_text", "الدفعة:") ?: "الدفعة:",
-                xPercent = prefs.getFloat("${p}_batch_x", 0.85f),
-                yPercent = prefs.getFloat("${p}_batch_y", 0.90f),
-                fontSize = prefs.getFloat("${p}_batch_size", 6.5f),
-                colorHex = prefs.getString("${p}_batch_color", "#64748B") ?: "#64748B"
             ),
             posConfig = CardElementConfig(
                 visible = prefs.getBoolean("${p}_pos_vis", false),
-                titleText = prefs.getString("${p}_pos_text", "نقطة البيع: المركز الرئيسي") ?: "نقطة البيع: المركز الرئيسي",
-                xPercent = prefs.getFloat("${p}_pos_x", 0.50f),
-                yPercent = prefs.getFloat("${p}_pos_y", 0.95f),
-                fontSize = prefs.getFloat("${p}_pos_size", 6.5f),
+                showTitle = false,
+                titleText = prefs.getString("${p}_pos_text", "") ?: "",
+                xMm = prefs.getFloat("${p}_pos_x_mm", 4f),
+                yMm = prefs.getFloat("${p}_pos_y_mm", 12f),
+                fontSize = prefs.getFloat("${p}_pos_size", 8f),
+                isBold = prefs.getBoolean("${p}_pos_bold", false),
+                isItalic = prefs.getBoolean("${p}_pos_italic", false),
                 colorHex = prefs.getString("${p}_pos_color", "#64748B") ?: "#64748B"
-            )
+            ),
+            barcodeConfig = CardElementConfig(
+                visible = prefs.getBoolean("${p}_barcode_vis", false),
+                xMm = prefs.getFloat("${p}_barcode_x_mm", 44f),
+                yMm = prefs.getFloat("${p}_barcode_y_mm", 3f),
+                widthMm = prefs.getFloat("${p}_barcode_w_mm", 18f),
+                heightMm = prefs.getFloat("${p}_barcode_h_mm", 8f)
+            ),
+            logoConfig = CardElementConfig(
+                visible = prefs.getBoolean("${p}_logo_vis", false),
+                xMm = prefs.getFloat("${p}_logo_x_mm", 4f),
+                yMm = prefs.getFloat("${p}_logo_y_mm", 8f),
+                widthMm = prefs.getFloat("${p}_logo_w_mm", 10f),
+                heightMm = prefs.getFloat("${p}_logo_h_mm", 10f)
+            ),
+            logoUrl = prefs.getString("${p}_logo_url", null)
         )
     }
 
     fun saveTemplateConfig(context: Context, config: CardTemplateConfig) {
         val prefs = context.getSharedPreferences("card_templates_prefs", Context.MODE_PRIVATE)
         val p = config.templateName
+        val templates = getTemplatesList(context).toMutableList()
+        if (!templates.contains(config.templateName)) {
+            templates.add(config.templateName)
+            saveTemplatesList(context, templates)
+        }
+
         prefs.edit()
             .putInt("${p}_columns", config.columns)
             .putInt("${p}_rows", config.rows)
             .putBoolean("${p}_auto_fit", config.autoFitA4)
             .putFloat("${p}_h_margin", config.horizontalMarginMm)
             .putFloat("${p}_v_margin", config.verticalMarginMm)
+            .putFloat("${p}_page_margin_mm", config.pageMarginMm)
+            .putFloat("${p}_card_w_mm", config.cardWidthMm)
+            .putFloat("${p}_card_h_mm", config.cardHeightMm)
+            .putString("${p}_um_pkg_id", config.userManagerPackageId)
+            .putString("${p}_hs_pkg_id", config.hotspotPackageId)
             .putBoolean("${p}_bg_enabled", config.backgroundEnabled)
             .putString("${p}_bg_preset", config.bgPreset)
             .putString("${p}_custom_bg_path", config.customBgPath)
@@ -306,92 +427,277 @@ object CardPrintAndExportHelper {
             .putString("${p}_border_color", config.borderColorHex)
             .putBoolean("${p}_page_note_enabled", config.pageNoteEnabled)
             .putString("${p}_page_note_text", config.pageNoteText)
+            .putFloat("${p}_page_note_x", config.pageNoteX)
+            .putFloat("${p}_page_note_y", config.pageNoteY)
             .putFloat("${p}_page_note_size", config.pageNoteSize)
             .putString("${p}_page_note_color", config.pageNoteColorHex)
             .putBoolean("${p}_page_num_enabled", config.pageNumberingEnabled)
             .putString("${p}_page_num_text", config.pageNumberingText)
+            .putInt("${p}_digits", config.digits)
+            .putString("${p}_charset", config.charset)
+            .putFloat("${p}_move_step", config.moveStep)
+            .putBoolean("${p}_show_username", config.showUsername)
             // Username
             .putBoolean("${p}_user_vis", config.usernameConfig.visible)
             .putBoolean("${p}_user_title_on", config.usernameConfig.showTitle)
             .putString("${p}_user_title_text", config.usernameConfig.titleText)
-            .putFloat("${p}_user_x", config.usernameConfig.xPercent)
-            .putFloat("${p}_user_y", config.usernameConfig.yPercent)
+            .putFloat("${p}_user_x_mm", config.usernameConfig.xMm)
+            .putFloat("${p}_user_y_mm", config.usernameConfig.yMm)
             .putFloat("${p}_user_size", config.usernameConfig.fontSize)
             .putBoolean("${p}_user_bold", config.usernameConfig.isBold)
+            .putBoolean("${p}_user_italic", config.usernameConfig.isItalic)
             .putString("${p}_user_color", config.usernameConfig.colorHex)
+            // Title
+            .putBoolean("${p}_title_vis", config.titleConfig.visible)
+            .putString("${p}_title_text", config.titleConfig.titleText)
+            .putFloat("${p}_title_x_mm", config.titleConfig.xMm)
+            .putFloat("${p}_title_y_mm", config.titleConfig.yMm)
+            .putFloat("${p}_title_size", config.titleConfig.fontSize)
+            .putBoolean("${p}_title_bold", config.titleConfig.isBold)
+            .putBoolean("${p}_title_italic", config.titleConfig.isItalic)
+            .putString("${p}_title_color", config.titleConfig.colorHex)
             // Password
             .putBoolean("${p}_pass_vis", config.passwordConfig.visible)
             .putBoolean("${p}_pass_title_on", config.passwordConfig.showTitle)
             .putString("${p}_pass_title_text", config.passwordConfig.titleText)
-            .putFloat("${p}_pass_x", config.passwordConfig.xPercent)
-            .putFloat("${p}_pass_y", config.passwordConfig.yPercent)
+            .putFloat("${p}_pass_x_mm", config.passwordConfig.xMm)
+            .putFloat("${p}_pass_y_mm", config.passwordConfig.yMm)
             .putFloat("${p}_pass_size", config.passwordConfig.fontSize)
             .putBoolean("${p}_pass_bold", config.passwordConfig.isBold)
+            .putBoolean("${p}_pass_italic", config.passwordConfig.isItalic)
             .putString("${p}_pass_color", config.passwordConfig.colorHex)
             // Price
             .putBoolean("${p}_price_vis", config.priceConfig.visible)
             .putBoolean("${p}_price_title_on", config.priceConfig.showTitle)
             .putString("${p}_price_title_text", config.priceConfig.titleText)
-            .putFloat("${p}_price_x", config.priceConfig.xPercent)
-            .putFloat("${p}_price_y", config.priceConfig.yPercent)
+            .putFloat("${p}_price_x_mm", config.priceConfig.xMm)
+            .putFloat("${p}_price_y_mm", config.priceConfig.yMm)
             .putFloat("${p}_price_size", config.priceConfig.fontSize)
             .putBoolean("${p}_price_bold", config.priceConfig.isBold)
+            .putBoolean("${p}_price_italic", config.priceConfig.isItalic)
             .putString("${p}_price_color", config.priceConfig.colorHex)
             // Profile
             .putBoolean("${p}_prof_vis", config.profileConfig.visible)
             .putBoolean("${p}_prof_title_on", config.profileConfig.showTitle)
             .putString("${p}_prof_title_text", config.profileConfig.titleText)
-            .putFloat("${p}_prof_x", config.profileConfig.xPercent)
-            .putFloat("${p}_prof_y", config.profileConfig.yPercent)
+            .putFloat("${p}_prof_x_mm", config.profileConfig.xMm)
+            .putFloat("${p}_prof_y_mm", config.profileConfig.yMm)
             .putFloat("${p}_prof_size", config.profileConfig.fontSize)
             .putBoolean("${p}_prof_bold", config.profileConfig.isBold)
+            .putBoolean("${p}_prof_italic", config.profileConfig.isItalic)
             .putString("${p}_prof_color", config.profileConfig.colorHex)
-            // Validity
-            .putBoolean("${p}_val_vis", config.validityConfig.visible)
-            .putBoolean("${p}_val_title_on", config.validityConfig.showTitle)
-            .putString("${p}_val_title_text", config.validityConfig.titleText)
-            .putFloat("${p}_val_x", config.validityConfig.xPercent)
-            .putFloat("${p}_val_y", config.validityConfig.yPercent)
-            .putFloat("${p}_val_size", config.validityConfig.fontSize)
-            .putString("${p}_val_color", config.validityConfig.colorHex)
-            // Quota
-            .putBoolean("${p}_quota_vis", config.quotaConfig.visible)
-            .putBoolean("${p}_quota_title_on", config.quotaConfig.showTitle)
-            .putString("${p}_quota_title_text", config.quotaConfig.titleText)
-            .putFloat("${p}_quota_x", config.quotaConfig.xPercent)
-            .putFloat("${p}_quota_y", config.quotaConfig.yPercent)
-            .putFloat("${p}_quota_size", config.quotaConfig.fontSize)
-            .putString("${p}_quota_color", config.quotaConfig.colorHex)
-            // QR
-            .putBoolean("${p}_qr_vis", config.qrConfig.visible)
-            .putFloat("${p}_qr_x", config.qrConfig.xPercent)
-            .putFloat("${p}_qr_y", config.qrConfig.yPercent)
-            .putFloat("${p}_qr_w", config.qrConfig.widthMm)
-            .putFloat("${p}_qr_h", config.qrConfig.heightMm)
+            // Payment
+            .putBoolean("${p}_payment_vis", config.paymentConfig.visible)
+            .putString("${p}_payment_text", config.paymentConfig.titleText)
+            .putFloat("${p}_payment_x_mm", config.paymentConfig.xMm)
+            .putFloat("${p}_payment_y_mm", config.paymentConfig.yMm)
+            .putFloat("${p}_payment_size", config.paymentConfig.fontSize)
+            .putBoolean("${p}_payment_bold", config.paymentConfig.isBold)
+            .putBoolean("${p}_payment_italic", config.paymentConfig.isItalic)
+            .putString("${p}_payment_color", config.paymentConfig.colorHex)
             // Serial
             .putBoolean("${p}_ser_vis", config.serialConfig.visible)
-            .putBoolean("${p}_ser_title_on", config.serialConfig.showTitle)
             .putString("${p}_ser_title_text", config.serialConfig.titleText)
-            .putFloat("${p}_ser_x", config.serialConfig.xPercent)
-            .putFloat("${p}_ser_y", config.serialConfig.yPercent)
+            .putFloat("${p}_ser_x_mm", config.serialConfig.xMm)
+            .putFloat("${p}_ser_y_mm", config.serialConfig.yMm)
             .putFloat("${p}_ser_size", config.serialConfig.fontSize)
+            .putBoolean("${p}_ser_bold", config.serialConfig.isBold)
+            .putBoolean("${p}_ser_italic", config.serialConfig.isItalic)
             .putString("${p}_ser_color", config.serialConfig.colorHex)
-            // Batch
-            .putBoolean("${p}_batch_vis", config.batchConfig.visible)
-            .putBoolean("${p}_batch_title_on", config.batchConfig.showTitle)
-            .putString("${p}_batch_title_text", config.batchConfig.titleText)
-            .putFloat("${p}_batch_x", config.batchConfig.xPercent)
-            .putFloat("${p}_batch_y", config.batchConfig.yPercent)
-            .putFloat("${p}_batch_size", config.batchConfig.fontSize)
-            .putString("${p}_batch_color", config.batchConfig.colorHex)
             // POS
             .putBoolean("${p}_pos_vis", config.posConfig.visible)
             .putString("${p}_pos_text", config.posConfig.titleText)
-            .putFloat("${p}_pos_x", config.posConfig.xPercent)
-            .putFloat("${p}_pos_y", config.posConfig.yPercent)
+            .putFloat("${p}_pos_x_mm", config.posConfig.xMm)
+            .putFloat("${p}_pos_y_mm", config.posConfig.yMm)
             .putFloat("${p}_pos_size", config.posConfig.fontSize)
+            .putBoolean("${p}_pos_bold", config.posConfig.isBold)
+            .putBoolean("${p}_pos_italic", config.posConfig.isItalic)
             .putString("${p}_pos_color", config.posConfig.colorHex)
+            // Barcode
+            .putBoolean("${p}_barcode_vis", config.barcodeConfig.visible)
+            .putFloat("${p}_barcode_x_mm", config.barcodeConfig.xMm)
+            .putFloat("${p}_barcode_y_mm", config.barcodeConfig.yMm)
+            .putFloat("${p}_barcode_w_mm", config.barcodeConfig.widthMm)
+            .putFloat("${p}_barcode_h_mm", config.barcodeConfig.heightMm)
+            // Logo
+            .putBoolean("${p}_logo_vis", config.logoConfig.visible)
+            .putFloat("${p}_logo_x_mm", config.logoConfig.xMm)
+            .putFloat("${p}_logo_y_mm", config.logoConfig.yMm)
+            .putFloat("${p}_logo_w_mm", config.logoConfig.widthMm)
+            .putFloat("${p}_logo_h_mm", config.logoConfig.heightMm)
+            .putString("${p}_logo_url", config.logoUrl)
             .apply()
+
+        // Also sync profile link if package specified
+        if (config.userManagerPackageId.isNotEmpty()) {
+            prefs.edit().putString("${config.userManagerPackageId}_template", config.templateName).apply()
+        }
+        if (config.hotspotPackageId.isNotEmpty()) {
+            prefs.edit().putString("${config.hotspotPackageId}_template", config.templateName).apply()
+        }
+    }
+
+    /**
+     * Preview card design directly in built-in Android PDF reader
+     */
+    fun openPdfPreviewWithBuiltInViewer(
+        context: Context,
+        config: CardTemplateConfig,
+        customBgBitmap: Bitmap? = null,
+        users: List<UserManagerUser> = emptyList(),
+        batch: GeneratedBatchRecord? = null
+    ) {
+        try {
+            val totalCards = (config.columns * config.rows).coerceAtLeast(1)
+            val realCards = if (users.isNotEmpty()) {
+                users
+            } else {
+                (1..totalCards).map { i ->
+                    val code = (1000000000L + (i * 388954024L % 9000000000L)).toString()
+                    UserManagerUser(
+                        username = code,
+                        password = (5000 + i).toString(),
+                        profile = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
+                        active = true
+                    )
+                }
+            }
+
+            val curBatch = batch ?: GeneratedBatchRecord(
+                batchId = "معاينة",
+                profileName = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
+                pricePerCard = 100,
+                count = realCards.size,
+                date = "2026/09/03",
+                prefix = ""
+            )
+
+            val bgBitmap = customBgBitmap ?: loadPresetBitmap(context, config.bgPreset, config.customBgPath)
+
+            val pdfDocument = android.graphics.pdf.PdfDocument()
+            val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
+            val page = pdfDocument.startPage(pageInfo)
+
+            drawHighFidelityCardPage(
+                canvas = page.canvas,
+                pageIndex = 0,
+                totalPages = 1,
+                users = realCards,
+                config = config,
+                bgBitmap = bgBitmap,
+                batch = curBatch
+            )
+            pdfDocument.finishPage(page)
+
+            val cacheFile = File(context.cacheDir, "preview_${config.templateName}.pdf")
+            val fos = FileOutputStream(cacheFile)
+            pdfDocument.writeTo(fos)
+            fos.flush()
+            fos.close()
+            pdfDocument.close()
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                cacheFile
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(Intent.createChooser(intent, "معاينة ملف PDF - ABO TALAL VIP"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "تعذر فتح معاينة PDF: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * Print cards and save PDF file directly to device Downloads
+     */
+    fun printAndSavePdfDocument(
+        context: Context,
+        config: CardTemplateConfig,
+        customBgBitmap: Bitmap? = null,
+        users: List<UserManagerUser> = emptyList(),
+        batch: GeneratedBatchRecord? = null
+    ) {
+        try {
+            val totalCards = (config.columns * config.rows).coerceAtLeast(1)
+            val realCards = if (users.isNotEmpty()) {
+                users
+            } else {
+                (1..totalCards).map { i ->
+                    val code = (1000000000L + (i * 388954024L % 9000000000L)).toString()
+                    UserManagerUser(
+                        username = code,
+                        password = (5000 + i).toString(),
+                        profile = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
+                        active = true
+                    )
+                }
+            }
+
+            val curBatch = batch ?: GeneratedBatchRecord(
+                batchId = "معاينة",
+                profileName = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
+                pricePerCard = 100,
+                count = realCards.size,
+                date = "2026/09/03",
+                prefix = ""
+            )
+
+            val bgBitmap = customBgBitmap ?: loadPresetBitmap(context, config.bgPreset, config.customBgPath)
+
+            // 1. Save PDF file to Downloads
+            try {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val fileName = "ABO_TALAL_${config.templateName}_${System.currentTimeMillis()}.pdf"
+                val targetFile = File(downloadsDir, fileName)
+
+                val pdfDocument = android.graphics.pdf.PdfDocument()
+                val cardsPerPage = config.columns * config.rows
+                val totalPages = Math.ceil(realCards.size.toDouble() / cardsPerPage.toDouble()).toInt().coerceAtLeast(1)
+
+                for (p in 0 until totalPages) {
+                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, p + 1).create()
+                    val page = pdfDocument.startPage(pageInfo)
+                    val startIdx = p * cardsPerPage
+                    val endIdx = (startIdx + cardsPerPage).coerceAtMost(realCards.size)
+                    val subList = if (startIdx < realCards.size) realCards.subList(startIdx, endIdx) else emptyList()
+
+                    drawHighFidelityCardPage(
+                        canvas = page.canvas,
+                        pageIndex = p,
+                        totalPages = totalPages,
+                        users = subList,
+                        config = config,
+                        bgBitmap = bgBitmap,
+                        batch = curBatch
+                    )
+                    pdfDocument.finishPage(page)
+                }
+
+                val fos = FileOutputStream(targetFile)
+                pdfDocument.writeTo(fos)
+                fos.flush()
+                fos.close()
+                pdfDocument.close()
+                Toast.makeText(context, "تم حفظ ملف PDF في التنزيلات:\n$fileName", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 2. Open native print manager
+            previewDesignInSystemPrint(context, config, bgBitmap)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "فشل الطباعة: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     /**
@@ -906,16 +1212,45 @@ object CardPrintAndExportHelper {
         val cardW = cardRect.width()
         val cardH = cardRect.height()
 
-        // 1. Username / Code
+        val cardWidthMm = if (config.autoFitA4) {
+            val usableW = 210f - (config.pageMarginMm * 2) - (config.horizontalMarginMm * (config.columns - 1))
+            (usableW / config.columns.coerceAtLeast(1)).coerceAtLeast(10f)
+        } else config.cardWidthMm
+
+        val cardHeightMm = if (config.autoFitA4) {
+            val usableH = 297f - (config.pageMarginMm * 2) - (config.verticalMarginMm * (config.rows - 1))
+            (usableH / config.rows.coerceAtLeast(1)).coerceAtLeast(10f)
+        } else config.cardHeightMm
+
+        val scaleX = cardW / cardWidthMm
+        val scaleY = cardH / cardHeightMm
+
+        // Helper to draw text element based on xMm from right and yMm from top
+        fun drawTextItem(elem: CardElementConfig, displayText: String) {
+            if (!elem.visible || displayText.isEmpty()) return
+            val posX = cardRect.right - (elem.xMm * scaleX)
+            val posY = cardRect.top + (elem.yMm * scaleY) + (elem.fontSize * 0.85f)
+
+            val paint = AndroidPaint().apply {
+                isAntiAlias = true
+                textAlign = AndroidPaint.Align.RIGHT
+                textSize = elem.fontSize.coerceIn(5f, 26f)
+                color = parseColorSafe(elem.colorHex, AndroidColor.parseColor("#0F172A"))
+                isFakeBoldText = elem.isBold
+            }
+            canvas.drawText(displayText, posX, posY, paint)
+        }
+
+        // 1. Username / Code (ALWAYS displays real user code, positioned at exact xMm & yMm)
         if (config.usernameConfig.visible) {
             val uCfg = config.usernameConfig
-            val posX = cardRect.left + (cardW * uCfg.xPercent)
-            val posY = cardRect.top + (cardH * uCfg.yPercent)
+            val posX = cardRect.right - (uCfg.xMm * scaleX)
+            val posY = cardRect.top + (uCfg.yMm * scaleY) + (uCfg.fontSize * 0.85f)
 
             val uPaint = AndroidPaint().apply {
                 isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = uCfg.fontSize.coerceIn(6f, 22f)
+                textAlign = AndroidPaint.Align.RIGHT
+                textSize = uCfg.fontSize.coerceIn(6f, 24f)
                 color = parseColorSafe(uCfg.colorHex, AndroidColor.parseColor("#0F172A"))
                 isFakeBoldText = uCfg.isBold
             }
@@ -923,191 +1258,127 @@ object CardPrintAndExportHelper {
             if (uCfg.showTitle && uCfg.titleText.isNotEmpty()) {
                 val titlePaint = AndroidPaint().apply {
                     isAntiAlias = true
-                    textAlign = AndroidPaint.Align.CENTER
+                    textAlign = AndroidPaint.Align.RIGHT
                     textSize = (uCfg.fontSize * 0.65f).coerceIn(5f, 12f)
                     color = parseColorSafe(uCfg.colorHex, AndroidColor.DKGRAY)
                 }
-                canvas.drawText(uCfg.titleText, posX, posY - (uCfg.fontSize * 0.8f), titlePaint)
+                canvas.drawText(uCfg.titleText, posX, posY - (uCfg.fontSize * 0.85f), titlePaint)
             }
 
+            // Real user username code
             canvas.drawText(user.username, posX, posY, uPaint)
         }
 
-        // 2. Password (if enabled)
+        // 2. Title
+        if (config.titleConfig.visible) {
+            drawTextItem(config.titleConfig, config.titleConfig.titleText)
+        }
+
+        // 3. Password
         if (config.passwordConfig.visible) {
-            val pCfg = config.passwordConfig
-            val posX = cardRect.left + (cardW * pCfg.xPercent)
-            val posY = cardRect.top + (cardH * pCfg.yPercent)
-
-            val pPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = pCfg.fontSize.coerceIn(6f, 18f)
-                color = parseColorSafe(pCfg.colorHex, AndroidColor.parseColor("#0F172A"))
-                isFakeBoldText = pCfg.isBold
-            }
-
-            val passText = if (user.password.isNotEmpty()) user.password else user.username
-            val displayText = if (pCfg.showTitle && pCfg.titleText.isNotEmpty()) "${pCfg.titleText} $passText" else passText
-            canvas.drawText(displayText, posX, posY, pPaint)
+            val pText = if (user.password.isNotEmpty()) user.password else user.username
+            drawTextItem(config.passwordConfig, pText)
         }
 
-        // 3. Price / الفئة
+        // 4. Price
         if (config.priceConfig.visible) {
-            val prCfg = config.priceConfig
-            val posX = cardRect.left + (cardW * prCfg.xPercent)
-            val posY = cardRect.top + (cardH * prCfg.yPercent)
-
-            val prPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = prCfg.fontSize.coerceIn(7f, 24f)
-                color = parseColorSafe(prCfg.colorHex, AndroidColor.parseColor("#0C5A60"))
-                isFakeBoldText = prCfg.isBold
+            val prText = if (config.priceConfig.titleText.isNotEmpty()) {
+                config.priceConfig.titleText
+            } else if (batch.pricePerCard > 0) {
+                "${batch.pricePerCard} ر.ي"
+            } else {
+                "500 ر.ي"
             }
-
-            val priceValue = if (batch.pricePerCard > 0) "${batch.pricePerCard}" else "100"
-            canvas.drawText(priceValue, posX, posY, prPaint)
-
-            if (prCfg.showTitle && prCfg.titleText.isNotEmpty()) {
-                val currPaint = AndroidPaint().apply {
-                    isAntiAlias = true
-                    textAlign = AndroidPaint.Align.CENTER
-                    textSize = (prCfg.fontSize * 0.55f).coerceIn(5f, 12f)
-                    color = parseColorSafe(prCfg.colorHex, AndroidColor.parseColor("#0C5A60"))
-                    isFakeBoldText = true
-                }
-                canvas.drawText(prCfg.titleText, posX, posY + (prCfg.fontSize * 0.65f), currPaint)
-            }
+            drawTextItem(config.priceConfig, prText)
         }
 
-        // 4. Profile Name
+        // 5. Profile
         if (config.profileConfig.visible) {
-            val pfCfg = config.profileConfig
-            val posX = cardRect.left + (cardW * pfCfg.xPercent)
-            val posY = cardRect.top + (cardH * pfCfg.yPercent)
-
-            val pfPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = pfCfg.fontSize.coerceIn(5f, 14f)
-                color = parseColorSafe(pfCfg.colorHex, AndroidColor.parseColor("#475569"))
-                isFakeBoldText = pfCfg.isBold
+            val pfText = if (config.profileConfig.titleText.isNotEmpty()) {
+                config.profileConfig.titleText
+            } else if (user.profile.isNotEmpty()) {
+                user.profile
+            } else {
+                batch.profileName
             }
-
-            val pText = if (user.profile.isNotEmpty()) user.profile else batch.profileName
-            val fullText = if (pfCfg.showTitle && pfCfg.titleText.isNotEmpty()) "${pfCfg.titleText}: $pText" else pText
-            canvas.drawText(fullText, posX, posY, pfPaint)
+            drawTextItem(config.profileConfig, pfText)
         }
 
-        // 5. Validity
-        if (config.validityConfig.visible) {
-            val vCfg = config.validityConfig
-            val posX = cardRect.left + (cardW * vCfg.xPercent)
-            val posY = cardRect.top + (cardH * vCfg.yPercent)
-
-            val vPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = vCfg.fontSize.coerceIn(5f, 12f)
-                color = parseColorSafe(vCfg.colorHex, AndroidColor.parseColor("#475569"))
-                isFakeBoldText = vCfg.isBold
+        // 6. Payment / Batch
+        if (config.paymentConfig.visible) {
+            val payText = if (config.paymentConfig.titleText.isNotEmpty()) {
+                config.paymentConfig.titleText
+            } else {
+                batch.batchId
             }
-            val text = if (vCfg.showTitle && vCfg.titleText.isNotEmpty()) "${vCfg.titleText} 7 أيام" else "7 أيام"
-            canvas.drawText(text, posX, posY, vPaint)
+            drawTextItem(config.paymentConfig, payText)
         }
 
-        // 6. Quota
-        if (config.quotaConfig.visible) {
-            val qCfg = config.quotaConfig
-            val posX = cardRect.left + (cardW * qCfg.xPercent)
-            val posY = cardRect.top + (cardH * qCfg.yPercent)
-
-            val qPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = qCfg.fontSize.coerceIn(5f, 12f)
-                color = parseColorSafe(qCfg.colorHex, AndroidColor.parseColor("#475569"))
-                isFakeBoldText = qCfg.isBold
+        // 7. Serial
+        if (config.serialConfig.visible) {
+            val sText = if (config.serialConfig.titleText.isNotEmpty()) {
+                config.serialConfig.titleText
+            } else {
+                user.username.takeLast(4)
             }
-            val text = if (qCfg.showTitle && qCfg.titleText.isNotEmpty()) "${qCfg.titleText} 2GB" else "2GB"
-            canvas.drawText(text, posX, posY, qPaint)
+            drawTextItem(config.serialConfig, sText)
         }
 
-        // 7. QR / Barcode (ONLY if enabled by user!)
-        if (config.qrConfig.visible) {
-            val qrCfg = config.qrConfig
-            val posX = cardRect.left + (cardW * qrCfg.xPercent)
-            val posY = cardRect.top + (cardH * qrCfg.yPercent)
-            val sizePt = (qrCfg.widthMm * 2.83f).coerceIn(15f, 50f)
+        // 8. POS
+        if (config.posConfig.visible) {
+            val posText = if (config.posConfig.titleText.isNotEmpty()) {
+                config.posConfig.titleText
+            } else {
+                "المركز الرئيسي"
+            }
+            drawTextItem(config.posConfig, posText)
+        }
 
-            val qrRect = AndroidRectF(posX - (sizePt / 2f), posY - (sizePt / 2f), posX + (sizePt / 2f), posY + (sizePt / 2f))
-            val qrBgPaint = AndroidPaint().apply {
+        // 9. Barcode
+        if (config.barcodeConfig.visible) {
+            val bCfg = config.barcodeConfig
+            val bw = (bCfg.widthMm * scaleX).coerceAtLeast(10f)
+            val bh = (bCfg.heightMm * scaleY).coerceAtLeast(6f)
+            val bx = cardRect.right - (bCfg.xMm * scaleX) - bw
+            val by = cardRect.top + (bCfg.yMm * scaleY)
+            val bRect = AndroidRectF(bx, by, bx + bw, by + bh)
+
+            val bgPaint = AndroidPaint().apply {
                 isAntiAlias = true
                 style = AndroidPaint.Style.FILL
                 color = AndroidColor.WHITE
             }
-            canvas.drawRoundRect(qrRect, 2f, 2f, qrBgPaint)
+            canvas.drawRoundRect(bRect, 2f, 2f, bgPaint)
 
-            // Draw clean barcode lines
             val barPaint = AndroidPaint().apply {
                 isAntiAlias = true
                 color = AndroidColor.BLACK
-                strokeWidth = 1.2f
+                strokeWidth = 1.1f
             }
-            val lineCount = 8
-            val step = sizePt / (lineCount + 1)
+            val lineCount = 10
+            val step = bw / (lineCount + 1)
             for (i in 1..lineCount) {
-                val lx = qrRect.left + (i * step)
-                canvas.drawLine(lx, qrRect.top + 2f, lx, qrRect.bottom - 2f, barPaint)
+                val lx = bRect.left + (i * step)
+                canvas.drawLine(lx, bRect.top + 2f, lx, bRect.bottom - 2f, barPaint)
             }
         }
 
-        // 8. Serial Number
-        if (config.serialConfig.visible) {
-            val sCfg = config.serialConfig
-            val posX = cardRect.left + (cardW * sCfg.xPercent)
-            val posY = cardRect.top + (cardH * sCfg.yPercent)
+        // 10. Logo
+        if (config.logoConfig.visible) {
+            val lCfg = config.logoConfig
+            val lw = (lCfg.widthMm * scaleX).coerceAtLeast(8f)
+            val lh = (lCfg.heightMm * scaleY).coerceAtLeast(8f)
+            val lx = cardRect.right - (lCfg.xMm * scaleX) - lw
+            val ly = cardRect.top + (lCfg.yMm * scaleY)
+            val lRect = AndroidRectF(lx, ly, lx + lw, ly + lh)
 
-            val sPaint = AndroidPaint().apply {
+            val logoPaint = AndroidPaint().apply {
                 isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = sCfg.fontSize.coerceIn(4.5f, 10f)
-                color = parseColorSafe(sCfg.colorHex, AndroidColor.parseColor("#64748B"))
+                style = AndroidPaint.Style.STROKE
+                strokeWidth = 1f
+                color = AndroidColor.DKGRAY
             }
-            val sText = if (sCfg.showTitle && sCfg.titleText.isNotEmpty()) "${sCfg.titleText} #1024" else "#1024"
-            canvas.drawText(sText, posX, posY, sPaint)
-        }
-
-        // 9. Batch ID
-        if (config.batchConfig.visible) {
-            val bCfg = config.batchConfig
-            val posX = cardRect.left + (cardW * bCfg.xPercent)
-            val posY = cardRect.top + (cardH * bCfg.yPercent)
-
-            val bPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = bCfg.fontSize.coerceIn(4.5f, 10f)
-                color = parseColorSafe(bCfg.colorHex, AndroidColor.parseColor("#64748B"))
-            }
-            val bText = if (bCfg.showTitle && bCfg.titleText.isNotEmpty()) "${bCfg.titleText} ${batch.batchId}" else batch.batchId
-            canvas.drawText(bText, posX, posY, bPaint)
-        }
-
-        // 10. Point of Sale (POS)
-        if (config.posConfig.visible && config.posConfig.titleText.isNotEmpty()) {
-            val pCfg = config.posConfig
-            val posX = cardRect.left + (cardW * pCfg.xPercent)
-            val posY = cardRect.top + (cardH * pCfg.yPercent)
-
-            val posPaint = AndroidPaint().apply {
-                isAntiAlias = true
-                textAlign = AndroidPaint.Align.CENTER
-                textSize = pCfg.fontSize.coerceIn(4.5f, 10f)
-                color = parseColorSafe(pCfg.colorHex, AndroidColor.parseColor("#64748B"))
-            }
-            canvas.drawText(config.posConfig.titleText, posX, posY, posPaint)
+            canvas.drawRoundRect(lRect, 2f, 2f, logoPaint)
         }
     }
 

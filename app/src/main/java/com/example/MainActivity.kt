@@ -508,6 +508,7 @@ fun MainAppNavigation(viewModel: MikroTikViewModel) {
                             onBack = { currentTab = 0 }
                         )
                         5 -> CardDesignScreen(
+                            viewModel = viewModel,
                             onNavigateBack = { currentTab = 0 }
                         )
                     }

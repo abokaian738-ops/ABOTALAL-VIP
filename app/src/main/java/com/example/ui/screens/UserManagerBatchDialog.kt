@@ -1544,7 +1544,7 @@ fun UserManagerBatchFullDialog(
 
     // --- DIALOG: Link Template Dialog (ربط الباقة بقالب الطباعة المحفوظ) ---
     if (showLinkTemplateDialog) {
-        val availableTemplates = listOf("كروت_فئة_100", "كروت_فئة_200", "كروت_فئة_500", "Abu_Talal_VIP", "Default_Design")
+        val availableTemplates = remember { CardPrintAndExportHelper.getTemplatesList(context) }
 
         AlertDialog(
             onDismissRequest = { showLinkTemplateDialog = false },
