@@ -143,3 +143,45 @@ data class CardPrintTemplate(
     val serialColorHex: String = "#000000"
 )
 
+data class PppoeUser(
+    val name: String,
+    val password: String = "",
+    val service: String = "pppoe",
+    val profile: String = "default",
+    val localAddress: String = "",
+    val remoteAddress: String = "",
+    val comment: String = "",
+    val disabled: Boolean = false,
+    val callerId: String = "",
+    val uptime: String = "0s",
+    val isActive: Boolean = false
+)
+
+data class TelegramBotItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val token: String,
+    val chatId: String,
+    val isDefault: Boolean = false,
+    val isConnected: Boolean = false,
+    val botUsername: String = ""
+)
+
+data class TelegramNotificationSettings(
+    val notifyNewCardSold: Boolean = true,
+    val notifyServerReboot: Boolean = true,
+    val notifyHighCpu: Boolean = true,
+    val notifyNewActiveUser: Boolean = false,
+    val notifyDailySummary: Boolean = true
+)
+
+data class RouterGenericItem(
+    val id: String = "",
+    val title: String,
+    val subtitle: String = "",
+    val status: String = "",
+    val extra: String = "",
+    val isEnabled: Boolean = true,
+    val rawProperties: Map<String, String> = emptyMap()
+)
+

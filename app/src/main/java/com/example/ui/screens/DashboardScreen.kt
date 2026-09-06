@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -594,6 +595,170 @@ fun DashboardScreen(
                     contentColor = Color(0xFF0284C7),
                     isDarkMode = isDarkMode,
                     onClick = { showAboutDialog = true }
+                )
+            }
+        }
+
+        // ==========================================
+        // 5. قسم الأدوات (Tools Section)
+        // ==========================================
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "الأدوات",
+                        fontFamily = CairoFontFamily,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = textPrimary
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF0C5A60)
+                    ) {
+                        Text(
+                            text = "جديد",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                TextButton(onClick = { navigateToTab(6) }) {
+                    Text(
+                        text = "فتح قسم الأدوات (38+)",
+                        fontFamily = CairoFontFamily,
+                        color = Color(0xFF0284C7),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = Color(0xFF0284C7),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // Featured Port & Telegram Banners
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color(0xFF1E293B) else Color.White),
+                elevation = CardDefaults.cardElevation(3.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { navigateToTab(6) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFF063B40),
+                                    Color(0xFF0C5A60),
+                                    Color(0xFF0284C7)
+                                )
+                            )
+                        )
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Filled.SettingsEthernet,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "عرض المنافذ واستهلاك الإنترنت",
+                                fontFamily = CairoFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "مراقبة استهلاك وحجم بيانات كل منفذ والتحكم الفوري",
+                                fontFamily = CairoFontFamily,
+                                fontSize = 11.sp,
+                                color = Color(0xFFBAE6FD)
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "دخول",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Row of quick tool buttons in Dashboard
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ServiceCard(
+                    modifier = Modifier.weight(1f),
+                    title = "إشعارات التيليجرام",
+                    icon = Icons.Filled.Send,
+                    backgroundColor = if (isDarkMode) Color(0xFF0088CC).copy(alpha = 0.2f) else Color(0xFFE0F2FE),
+                    contentColor = Color(0xFF0088CC),
+                    isDarkMode = isDarkMode,
+                    onClick = { navigateToTab(6) }
+                )
+
+                ServiceCard(
+                    modifier = Modifier.weight(1f),
+                    title = "حسابات البروباند",
+                    icon = Icons.Filled.Dns,
+                    backgroundColor = if (isDarkMode) Color(0xFF2563EB).copy(alpha = 0.2f) else Color(0xFFDBEAFE),
+                    contentColor = Color(0xFF2563EB),
+                    isDarkMode = isDarkMode,
+                    onClick = { navigateToTab(6) }
+                )
+
+                ServiceCard(
+                    modifier = Modifier.weight(1f),
+                    title = "مجلد الهوتسبوت",
+                    icon = Icons.Filled.FolderSpecial,
+                    backgroundColor = if (isDarkMode) Color(0xFF0D9488).copy(alpha = 0.2f) else Color(0xFFCCFBF1),
+                    contentColor = Color(0xFF0D9488),
+                    isDarkMode = isDarkMode,
+                    onClick = { navigateToTab(6) }
                 )
             }
         }

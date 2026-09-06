@@ -275,6 +275,51 @@ class MikroTikViewModel(application: Application) : AndroidViewModel(application
         repository.refreshData()
     }
 
+    /* Tools & Advanced Router Operations */
+    fun setHtmlDirectory(dirName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.setHtmlDirectory(dirName, onSuccess, onError)
+    }
+
+    fun toggleFreeHotspot(enableFree: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.toggleFreeHotspot(enableFree, onSuccess, onError)
+    }
+
+    fun toggleTtlBypass(blockSharing: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.toggleTtlBypass(blockSharing, onSuccess, onError)
+    }
+
+    fun toggleInterface(interfaceName: String, enable: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.toggleInterface(interfaceName, enable, onSuccess, onError)
+    }
+
+    fun resetInterfaceCounters(interfaceName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.resetInterfaceCounters(interfaceName, onSuccess, onError)
+    }
+
+    fun fetchPppoeUsers(onSuccess: (List<com.example.data.model.PppoeUser>) -> Unit, onError: (String) -> Unit) {
+        repository.fetchPppoeUsers(onSuccess, onError)
+    }
+
+    fun addPppoeUser(user: com.example.data.model.PppoeUser, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.addPppoeUser(user, onSuccess, onError)
+    }
+
+    fun deletePppoeUser(name: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.deletePppoeUser(name, onSuccess, onError)
+    }
+
+    fun installTelegramScript(scriptName: String, scriptSource: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.installTelegramScript(scriptName, scriptSource, onSuccess, onError)
+    }
+
+    fun executePing(target: String, count: Int = 4, onResult: (String) -> Unit) {
+        repository.executePing(target, count, onResult)
+    }
+
+    fun fetchGenericSectionData(categoryKey: String, onSuccess: (List<com.example.data.model.RouterGenericItem>) -> Unit, onError: (String) -> Unit) {
+        repository.fetchGenericSectionData(categoryKey, onSuccess, onError)
+    }
+
     // Simple Factory pattern for ViewModel Initialization
     class Factory(private val application: Application) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

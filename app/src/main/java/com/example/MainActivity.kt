@@ -421,22 +421,22 @@ fun MainAppNavigation(viewModel: MikroTikViewModel) {
                                     }
                                 }
 
-                                // 4. السجلات
+                                // 4. الأدوات
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(14.dp))
-                                        .clickable { currentTab = 2 }
+                                        .clickable { currentTab = 6 }
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Assignment,
-                                        contentDescription = "السجلات",
+                                        imageVector = Icons.Filled.Build,
+                                        contentDescription = "الأدوات",
                                         tint = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Text(
-                                        text = "السجلات",
+                                        text = "الأدوات",
                                         fontFamily = CairoFontFamily,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
@@ -486,6 +486,7 @@ fun MainAppNavigation(viewModel: MikroTikViewModel) {
                                     3 -> 2 // Reports / LogScreen
                                     4 -> 3 // Interfaces / Network
                                     5 -> 5 // CardDesignScreen
+                                    6 -> 6 // ToolsScreen
                                     else -> 0
                                 }
                             }
@@ -510,6 +511,10 @@ fun MainAppNavigation(viewModel: MikroTikViewModel) {
                         5 -> CardDesignScreen(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = 0 }
+                        )
+                        6 -> ToolsScreen(
+                            viewModel = viewModel,
+                            onBack = { currentTab = 0 }
                         )
                     }
                 }

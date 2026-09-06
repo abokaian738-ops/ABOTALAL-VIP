@@ -819,16 +819,20 @@ class MikroTikRepository(
         repositoryScope.launch {
             var counter = 0
             while (isTickerRunning) {
-                if (_isDemoMode.value) {
-                    tickDemoStats(counter)
-                } else {
-                    val api = nativeApi
-                    val conn = _currentConnection.value
-                    if (api != null && conn != null) {
-                        tickNativeDashboard(api, conn, counter)
-                    } else if (conn != null) {
-                        fetchRealRouterDashboard(conn)
+                try {
+                    if (_isDemoMode.value) {
+                        tickDemoStats(counter)
+                    } else {
+                        val api = nativeApi
+                        val conn = _currentConnection.value
+                        if (api != null && conn != null) {
+                            tickNativeDashboard(api, conn, counter)
+                        } else if (conn != null) {
+                            fetchRealRouterDashboard(conn)
+                        }
                     }
+                } catch (t: Throwable) {
+                    Log.w("MikroTikRepository", "Protected ticker tick from error: ${t.message}")
                 }
                 counter++
                 delay(3000) // update stats & heartbeat every 3 seconds
@@ -1781,31 +1785,35 @@ class MikroTikRepository(
         val memDelta = (-2048 * 1024..2048 * 1024).random().toLong()
         val newFreeMem = Math.max(100 * 1024 * 1024, Math.min(950 * 1024 * 1024, currentStats.freeMemoryBytes + memDelta))
         
-        // Accumulate active uptimes
+        // Accumulate active uptimes safely
         val updatedActive = _activeHotspot.value.map { active ->
-            val parts = active.uptime.split(":")
-            if (parts.size == 3) {
-                var h = parts[0].toInt()
-                var m = parts[1].toInt()
-                var s = parts[2].toInt()
-                s += 2
-                if (s >= 60) {
-                    s = 0
-                    m += 1
-                    if (m >= 60) {
-                        m = 0
-                        h += 1
+            try {
+                val parts = active.uptime.split(":")
+                if (parts.size == 3) {
+                    var h = parts[0].filter { it.isDigit() }.toIntOrNull() ?: 0
+                    var m = parts[1].filter { it.isDigit() }.toIntOrNull() ?: 0
+                    var s = parts[2].filter { it.isDigit() }.toIntOrNull() ?: 0
+                    s += 2
+                    if (s >= 60) {
+                        s = 0
+                        m += 1
+                        if (m >= 60) {
+                            m = 0
+                            h += 1
+                        }
                     }
+                    val formatH = String.format(Locale.US, "%02d", h)
+                    val formatM = String.format(Locale.US, "%02d", m)
+                    val formatS = String.format(Locale.US, "%02d", s)
+                    active.copy(
+                        uptime = "$formatH:$formatM:$formatS",
+                        bytesOut = active.bytesOut + (2000..50000).random(),
+                        bytesIn = active.bytesIn + (500..12000).random()
+                    )
+                } else {
+                    active
                 }
-                val formatH = String.format(Locale.US, "%02d", h)
-                val formatM = String.format(Locale.US, "%02d", m)
-                val formatS = String.format(Locale.US, "%02d", s)
-                active.copy(
-                    uptime = "$formatH:$formatM:$formatS",
-                    bytesOut = active.bytesOut + (2000..50000).random(),
-                    bytesIn = active.bytesIn + (500..12000).random()
-                )
-            } else {
+            } catch (_: Exception) {
                 active
             }
         }
@@ -1880,6 +1888,472 @@ class MikroTikRepository(
             } else {
                 tickDemoStats(1)
             }
+        }
+    }
+
+    /* =========================================
+       TOOLS & SERVICES REPOSITORY EXTENSIONS
+       ========================================= */
+
+    fun setHtmlDirectory(dirName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                insertActivityLog("تغيير مجلد الهوتسبوت", "تم ضبط مجلد صفحة تسجيل الدخول إلى: $dirName", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val profiles = api.execute("/ip/hotspot/profile/print")
+                    if (profiles.isNotEmpty()) {
+                        val firstId = profiles.first()[".id"] ?: "*0"
+                        api.execute("/ip/hotspot/profile/set", "=.id=$firstId", "=html-directory=$dirName")
+                    } else {
+                        api.execute("/ip/hotspot/profile/set", "=.id=*0", "=html-directory=$dirName")
+                    }
+                    insertActivityLog("تغيير مجلد الهوتسبوت", "تم ضبط مجلد صفحة تسجيل الدخول إلى: $dirName", _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل تطبيق مجلد الهوتسبوت: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر حالياً") }
+            }
+        }
+    }
+
+    fun toggleFreeHotspot(enableFree: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                val statusText = if (enableFree) "تفعيل الشبكة مجاناً بدون كروت" else "إعادة قفل الشبكة بنظام الكروت"
+                insertActivityLog("تفعيل الشبكة مجاناً", statusText, "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val servers = api.execute("/ip/hotspot/print")
+                    for (srv in servers) {
+                        val srvId = srv[".id"] ?: continue
+                        api.execute("/ip/hotspot/set", "=.id=$srvId", "=disabled=${if (enableFree) "yes" else "no"}")
+                    }
+                    val statusText = if (enableFree) "تم فتح الشبكة مجاناً بنجاح" else "تم إعادة تشغيل نظام كروت الهوتسبوت"
+                    insertActivityLog("حالة الهوتسبوت", statusText, _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل تغيير حالة السيرفر: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun toggleTtlBypass(blockSharing: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                val statusText = if (blockSharing) "تم تفعيل حظر مشاركة الإنترنت (TTL=1)" else "تم إلغاء حظر مشاركة الإنترنت"
+                insertActivityLog("إيقاف مشاركة النت", statusText, "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val rules = api.execute("/ip/firewall/mangle/print")
+                    val existing = rules.find { it["comment"]?.contains("ABO_TALAL_ANTI_SHARE") == true }
+                    if (blockSharing) {
+                        if (existing == null) {
+                            api.execute(
+                                "/ip/firewall/mangle/add",
+                                "=chain=postrouting",
+                                "=action=change-ttl",
+                                "=new-ttl=set:1",
+                                "=passthrough=yes",
+                                "=comment=ABO_TALAL_ANTI_SHARE"
+                            )
+                        }
+                    } else {
+                        if (existing != null) {
+                            val ruleId = existing[".id"] ?: ""
+                            if (ruleId.isNotBlank()) {
+                                api.execute("/ip/firewall/mangle/remove", "=.id=$ruleId")
+                            }
+                        }
+                    }
+                    insertActivityLog("مشاركة الإنترنت", if (blockSharing) "تفعيل TTL=1" else "تعطيل TTL=1", _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل تعديل قاعدة المانجل: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun toggleInterface(interfaceName: String, enable: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(300)
+                _interfaces.value = _interfaces.value.map {
+                    if (it.name == interfaceName) it.copy(running = enable) else it
+                }
+                insertActivityLog("المنافذ", if (enable) "تشغيل المنفذ $interfaceName" else "تعطيل المنفذ $interfaceName", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    api.execute("/interface/set", "=.id=$interfaceName", "=disabled=${if (enable) "no" else "yes"}")
+                    fetchRealInterfaces(_currentConnection.value ?: return@launch)
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("تعذر تعديل المنفذ: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun resetInterfaceCounters(interfaceName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(300)
+                _interfaces.value = _interfaces.value.map {
+                    if (it.name == interfaceName) it.copy(rxByte = 0L, txByte = 0L, rxSpeedKbps = 0.0, txSpeedKbps = 0.0) else it
+                }
+                insertActivityLog("المنافذ", "إعادة ضبط عدادات المنفذ $interfaceName", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    api.execute("/interface/reset-counters", "=.id=$interfaceName")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل تصفير العدادات: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun fetchPppoeUsers(onSuccess: (List<PppoeUser>) -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                val demoPpp = listOf(
+                    PppoeUser("client_ahmed", "1234", "pppoe", "10Mbps_Profile", "10.0.0.1", "10.0.0.15", "بروباند منزلي", false, "00:1A:2B:3C:4D:5E", "3d 05:22:10", true),
+                    PppoeUser("shop_alameer", "5566", "pppoe", "20Mbps_Profile", "10.0.0.1", "10.0.0.16", "محل الأمير للتجارة", false, "AA:BB:CC:DD:EE:01", "12d 18:40:02", true),
+                    PppoeUser("user_khalid", "9988", "pppoe", "5Mbps_Profile", "10.0.0.1", "10.0.0.17", "مشترك شهري", false, "11:22:33:44:55:66", "08:14:30", true),
+                    PppoeUser("office_vip", "pass123", "pppoe", "Unlimited_VIP", "10.0.0.1", "10.0.0.18", "مكتب الإدارة", false, "44:55:66:77:88:99", "1d 02:11:55", true),
+                    PppoeUser("guest_temp", "0000", "pppoe", "default", "", "", "حساب موقف مؤقت", true, "", "0s", false)
+                )
+                launch(Dispatchers.Main) { onSuccess(demoPpp) }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val secrets = api.execute("/ppp/secret/print")
+                    val actives = api.execute("/ppp/active/print")
+                    val activeMap = actives.associateBy { it["name"] ?: "" }
+
+                    val list = secrets.map { sec ->
+                        val name = sec["name"] ?: ""
+                        val act = activeMap[name]
+                        PppoeUser(
+                            name = name,
+                            password = sec["password"] ?: "",
+                            service = sec["service"] ?: "pppoe",
+                            profile = sec["profile"] ?: "default",
+                            localAddress = sec["local-address"] ?: (act?.get("address") ?: ""),
+                            remoteAddress = sec["remote-address"] ?: "",
+                            comment = sec["comment"] ?: "",
+                            disabled = sec["disabled"] == "true",
+                            callerId = act?.get("caller-id") ?: "",
+                            uptime = act?.get("uptime") ?: "0s",
+                            isActive = act != null
+                        )
+                    }
+                    launch(Dispatchers.Main) { onSuccess(list) }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل جلب حسابات البروباند: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun addPppoeUser(user: PppoeUser, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(300)
+                insertActivityLog("بروباند", "إضافة مستخدم بروباند ${user.name}", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    api.execute(
+                        "/ppp/secret/add",
+                        "=name=${user.name}",
+                        "=password=${user.password}",
+                        "=service=${user.service}",
+                        "=profile=${user.profile}",
+                        if (user.comment.isNotBlank()) "=comment=${user.comment}" else "=comment="
+                    )
+                    insertActivityLog("بروباند", "إضافة مشترك بروباند جديد ${user.name}", _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل إضافة المستخدم: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun deletePppoeUser(name: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(300)
+                insertActivityLog("بروباند", "حذف مستخدم البروباند $name", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    api.execute("/ppp/secret/remove", "=.id=$name")
+                    insertActivityLog("بروباند", "حذف مشترك بروباند $name", _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("فشل حذف المستخدم: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun installTelegramScript(scriptName: String, scriptSource: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                insertActivityLog("سكربتات المايكروتك", "تثبيت سكربت التلغرام $scriptName بنجاح", "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    // Check if exists
+                    val existing = api.execute("/system/script/print").find { it["name"] == scriptName }
+                    if (existing != null) {
+                        val scriptId = existing[".id"] ?: scriptName
+                        api.execute("/system/script/set", "=.id=$scriptId", "=source=$scriptSource")
+                    } else {
+                        api.execute(
+                            "/system/script/add",
+                            "=name=$scriptName",
+                            "=policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive",
+                            "=source=$scriptSource"
+                        )
+                    }
+                    insertActivityLog("تيليجرام", "تثبيت سكربت إشعارات تيليجرام على الراوتر: $scriptName", _currentConnection.value?.host ?: "")
+                    launch(Dispatchers.Main) { onSuccess() }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("تعذر حفظ السكربت على الراوتر: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun executePing(target: String, count: Int = 4, onResult: (String) -> Unit) {
+        repositoryScope.launch {
+            val cleanTarget = target.trim()
+            if (_isDemoMode.value) {
+                delay(800)
+                val pingOutput = buildString {
+                    appendLine("PING $cleanTarget 56 data bytes:")
+                    appendLine("64 bytes from $cleanTarget: icmp_seq=1 ttl=58 time=12.4 ms")
+                    appendLine("64 bytes from $cleanTarget: icmp_seq=2 ttl=58 time=11.8 ms")
+                    appendLine("64 bytes from $cleanTarget: icmp_seq=3 ttl=58 time=13.1 ms")
+                    appendLine("64 bytes from $cleanTarget: icmp_seq=4 ttl=58 time=12.0 ms")
+                    appendLine("--- $cleanTarget ping statistics ---")
+                    appendLine("4 packets transmitted, 4 received, 0% packet loss, time 3004ms")
+                    appendLine("rtt min/avg/max/mdev = 11.8/12.3/13.1/0.5 ms")
+                }
+                launch(Dispatchers.Main) { onResult(pingOutput) }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val res = api.execute("/ping", "=address=$cleanTarget", "=count=$count")
+                    val output = if (res.isNotEmpty()) {
+                        res.joinToString("\n") { row ->
+                            val host = row["host"] ?: cleanTarget
+                            val size = row["size"] ?: "64"
+                            val ttl = row["ttl"] ?: "56"
+                            val time = row["time"] ?: "15ms"
+                            "Reply from $host: bytes=$size time=$time TTL=$ttl"
+                        }
+                    } else {
+                        "لم يتم تلقي أي رد من المضيف: $cleanTarget"
+                    }
+                    launch(Dispatchers.Main) { onResult(output) }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onResult("خطأ أثناء تنفيذ Ping: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onResult("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    fun fetchGenericSectionData(categoryKey: String, onSuccess: (List<RouterGenericItem>) -> Unit, onError: (String) -> Unit) {
+        repositoryScope.launch {
+            if (_isDemoMode.value) {
+                delay(400)
+                val items = getDemoSectionItems(categoryKey)
+                launch(Dispatchers.Main) { onSuccess(items) }
+                return@launch
+            }
+            val api = nativeApi
+            if (api != null) {
+                try {
+                    val cmd = when (categoryKey) {
+                        "dhcp_server" -> "/ip/dhcp-server/print"
+                        "ip_addresses" -> "/ip/address/print"
+                        "dhcp_leases" -> "/ip/dhcp-server/lease/print"
+                        "dhcp_relay" -> "/ip/dhcp-relay/print"
+                        "nat" -> "/ip/firewall/nat/print"
+                        "dns" -> "/ip/dns/static/print"
+                        "address_lists" -> "/ip/firewall/address-list/print"
+                        "firewall_filter" -> "/ip/firewall/filter/print"
+                        "arp" -> "/ip/arp/print"
+                        "mangle" -> "/ip/firewall/mangle/print"
+                        "connections" -> "/ip/firewall/connection/print"
+                        "queues" -> "/queue/simple/print"
+                        "neighbors" -> "/ip/neighbor/print"
+                        "resources" -> "/system/resource/print"
+                        "routerboard" -> "/system/routerboard/print"
+                        "health" -> "/system/health/print"
+                        "logs" -> "/log/print"
+                        "users" -> "/user/print"
+                        else -> "/interface/print"
+                    }
+                    val resList = api.execute(cmd)
+                    val genericList = resList.mapIndexed { idx, map ->
+                        val title = map["name"] ?: map["address"] ?: map["chain"] ?: map["src-address"] ?: map["message"] ?: "عنصر #${idx + 1}"
+                        val sub = map["interface"] ?: map["mac-address"] ?: map["action"] ?: map["target"] ?: map["time"] ?: ""
+                        val status = map["status"] ?: (if (map["disabled"] == "true") "معطل" else "نشط")
+                        RouterGenericItem(
+                            id = map[".id"] ?: idx.toString(),
+                            title = title,
+                            subtitle = sub,
+                            status = status,
+                            extra = map["comment"] ?: "",
+                            isEnabled = map["disabled"] != "true",
+                            rawProperties = map
+                        )
+                    }
+                    launch(Dispatchers.Main) { onSuccess(genericList) }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) { onError("خطأ أثناء قراءة البيانات من الراوتر: ${e.message}") }
+                }
+            } else {
+                launch(Dispatchers.Main) { onError("غير متصل بالراوتر") }
+            }
+        }
+    }
+
+    private fun getDemoSectionItems(categoryKey: String): List<RouterGenericItem> {
+        return when (categoryKey) {
+            "dhcp_server" -> listOf(
+                RouterGenericItem("1", "dhcp_lan", "الواجهة: ether2", "نشط", "نطاق: 192.168.88.10-192.168.88.254"),
+                RouterGenericItem("2", "dhcp_hotspot", "الواجهة: bridge1", "نشط", "نطاق: 10.0.0.10-10.0.0.254")
+            )
+            "ip_addresses" -> listOf(
+                RouterGenericItem("1", "192.168.88.1/24", "الشبكة: 192.168.88.0", "نشط", "الواجهة: ether2-LAN"),
+                RouterGenericItem("2", "10.0.0.1/24", "الشبكة: 10.0.0.0", "نشط", "الواجهة: bridge-Hotspot"),
+                RouterGenericItem("3", "192.168.1.150/24", "الشبكة: 192.168.1.0", "نشط", "الواجهة: ether1-WAN (مودم)")
+            )
+            "dhcp_leases" -> listOf(
+                RouterGenericItem("1", "192.168.88.25", "MAC: BC:D0:74:11:22:33", "Bound (متصل)", "الهاتف: Samsung S23"),
+                RouterGenericItem("2", "192.168.88.42", "MAC: A0:B1:C2:D3:E4:F5", "Bound (متصل)", "كمبيوتر الإدارة الرئيسي"),
+                RouterGenericItem("3", "10.0.0.88", "MAC: 12:34:56:78:90:AB", "Bound (متصل)", "iPhone 15 Pro")
+            )
+            "nat" -> listOf(
+                RouterGenericItem("1", "srcnat -> masquerade", "Out Interface: ether1-WAN", "نشط", "مشاركة الإنترنت لجميع المستخدمين"),
+                RouterGenericItem("2", "dstnat -> port 8728", "In Interface: ether1", "نشط", "تحويل منفذ API لإدارة الراوتر عن بعد")
+            )
+            "dns" -> listOf(
+                RouterGenericItem("1", "8.8.8.8", "خادم أساسي (Google DNS)", "نشط", "Static/Dynamic"),
+                RouterGenericItem("2", "1.1.1.1", "خادم ثانوي (Cloudflare DNS)", "نشط", "Static/Dynamic"),
+                RouterGenericItem("3", "router.vip", "10.0.0.1 (صفحة تسجيل الدخول)", "نشط", "DNS Name للشبكة")
+            )
+            "address_lists" -> listOf(
+                RouterGenericItem("1", "WhiteList_VIP", "192.168.88.42", "مسموح", "أجهزة الإدارة - بدون حجب"),
+                RouterGenericItem("2", "BlackList_Blocked", "10.0.0.99", "محظور", "جهاز محظور بسبب تجاوز الباندويث"),
+                RouterGenericItem("3", "Social_Media", "157.240.22.35", "مراقبة", "نطاقات فيسبوك وإنستغرام")
+            )
+            "firewall_filter" -> listOf(
+                RouterGenericItem("1", "input: accept established,related", "Chain: input", "نشط", "قبول الاتصالات المعتمدة"),
+                RouterGenericItem("2", "input: drop invalid", "Chain: input", "نشط", "إسقاط الحزم التالفة"),
+                RouterGenericItem("3", "forward: drop BlackList_Blocked", "Chain: forward", "نشط", "منع الأجهزة المحظورة")
+            )
+            "arp" -> listOf(
+                RouterGenericItem("1", "192.168.88.1", "00:0C:42:1A:2B:3C", "Dynamic", "ether2"),
+                RouterGenericItem("2", "10.0.0.15", "54:E6:FC:88:99:AA", "Dynamic", "bridge1"),
+                RouterGenericItem("3", "192.168.1.1", "F4:8C:50:11:22:33", "Dynamic", "ether1-WAN")
+            )
+            "queues" -> listOf(
+                RouterGenericItem("1", "VIP_Management", "الهدف: 192.168.88.42", "50M/50M", "أعلى سرعة للإدارة"),
+                RouterGenericItem("2", "Hotspot_Users_Total", "الهدف: 10.0.0.0/24", "30M/30M", "تحديد السرعة الإجمالية للهوتسبوت"),
+                RouterGenericItem("3", "PPPoE_General", "الهدف: 10.10.0.0/16", "40M/40M", "سرعة البروباند")
+            )
+            "neighbors" -> listOf(
+                RouterGenericItem("1", "MikroTik hEX S", "IP: 192.168.88.2", "مكتشف عبر MNDP", "MAC: 48:8F:5A:11:22:33"),
+                RouterGenericItem("2", "Ubiquiti NanoStation", "IP: 10.0.0.250", "مكتشف عبر CDP", "MAC: DC:9F:DB:44:55:66"),
+                RouterGenericItem("3", "MikroTik Groove 52", "IP: 10.0.0.251", "مكتشف عبر LLDP", "MAC: 64:D1:54:77:88:99")
+            )
+            "resources" -> listOf(
+                RouterGenericItem("1", "المعالج CPU", "Load: 14% | Frequency: 716 MHz", "طبيعي", "4 Cores"),
+                RouterGenericItem("2", "الذاكرة RAM", "المستخدم: 82 MB | المتوفر: 174 MB", "ممتاز", "Total: 256 MB"),
+                RouterGenericItem("3", "القرص والذاكرة", "المساحة المتوفرة: 14.2 MB من 16 MB", "سليم", "NAND Storage"),
+                RouterGenericItem("4", "وقت التشغيل Uptime", "3 أسابيع، 4 أيام، 16 ساعة", "مستقر", "RouterOS v7.14.2")
+            )
+            "routerboard" -> listOf(
+                RouterGenericItem("1", "الموديل (Model)", "RB750Gr3 (hEX)", "الأصلي", "MikroTik RouterBOARD"),
+                RouterGenericItem("2", "الرقم التسلسلي (Serial)", "H8E09ABCD123", "مسجل", "Hardware SN"),
+                RouterGenericItem("3", "إصدار الفيرموير (Firmware)", "Current: 7.14.2 | Upgrade: 7.14.2", "محدث", "RouterBOOT")
+            )
+            "health" -> listOf(
+                RouterGenericItem("1", "درجة حرارة اللوحة", "38 °C", "ممتاز", "نطاق آمن (أقل من 65°C)"),
+                RouterGenericItem("2", "فولتية التيار الكهربائي", "24.1 V", "مستقر", "محول 24V 1.5A"),
+                RouterGenericItem("3", "استهلاك الطاقة", "4.2 Watt", "منخفض", "كفاءة عالية")
+            )
+            else -> listOf(
+                RouterGenericItem("1", "العنصر الأول", "التفاصيل الأساسية للقسم", "نشط", "نظام الراوتر"),
+                RouterGenericItem("2", "العنصر الثاني", "معلومات تشغيلية إضافية", "نشط", "نظام الراوتر")
+            )
         }
     }
 }
