@@ -31,6 +31,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class CardElementConfig(
     val visible: Boolean = true,
@@ -44,6 +47,7 @@ data class CardElementConfig(
     val isBold: Boolean = true,
     val isItalic: Boolean = false,
     val colorHex: String = "#0F172A",
+    val alignment: String = "center",
     val widthMm: Float = 10f,
     val heightMm: Float = 10f
 )
@@ -67,7 +71,7 @@ data class CardTemplateConfig(
     val borderSizeMm: Float = 0.35f,
     val borderColorHex: String = "#000000",
     val pageNoteEnabled: Boolean = false,
-    val pageNoteText: String = "أهلاً بكم في شبكة ABO TALAL VIP",
+    val pageNoteText: String = "أهلاً بكم في شبكة ABO TALAL",
     val pageNoteX: Float = 40f,
     val pageNoteY: Float = 6f,
     val pageNoteSize: Float = 10f,
@@ -94,7 +98,7 @@ data class CardTemplateConfig(
     val titleConfig: CardElementConfig = CardElementConfig(
         visible = false,
         showTitle = false,
-        titleText = "ABO TALAL VIP",
+        titleText = "ABO TALAL",
         xMm = 4f,
         yMm = 2f,
         fontSize = 8f,
@@ -538,25 +542,25 @@ object CardPrintAndExportHelper {
     }
 
     /**
-     * Preview card design directly in built-in Android PDF reader
+     * Generates a preview PDF file in cache directory and returns the File.
      */
-    fun openPdfPreviewWithBuiltInViewer(
+    fun generatePdfPreviewFile(
         context: Context,
         config: CardTemplateConfig,
         customBgBitmap: Bitmap? = null,
         users: List<UserManagerUser> = emptyList(),
         batch: GeneratedBatchRecord? = null
-    ) {
-        try {
+    ): File? {
+        return try {
             val totalCards = (config.columns * config.rows).coerceAtLeast(1)
             val realCards = if (users.isNotEmpty()) {
                 users
             } else {
                 (1..totalCards).map { i ->
-                    val code = (1000000000L + (i * 388954024L % 9000000000L)).toString()
+                    val code = String.format(Locale.US, "%010d", (1000000000L + (i * 388954024L % 9000000000L)))
                     UserManagerUser(
                         username = code,
-                        password = (5000 + i).toString(),
+                        password = String.format(Locale.US, "%04d", 5000 + i),
                         profile = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
                         active = true
                     )
@@ -568,7 +572,7 @@ object CardPrintAndExportHelper {
                 profileName = if (config.profileConfig.titleText.isNotEmpty()) config.profileConfig.titleText else "باقة VIP",
                 pricePerCard = 100,
                 count = realCards.size,
-                date = "2026/09/03",
+                date = SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date()),
                 prefix = ""
             )
 
@@ -596,6 +600,58 @@ object CardPrintAndExportHelper {
             fos.close()
             pdfDocument.close()
 
+            cacheFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Renders pages of a PDF file to Bitmaps using Android's native PdfRenderer.
+     */
+    fun renderPdfFileToBitmaps(pdfFile: File, maxPages: Int = 3): List<Bitmap> {
+        val list = mutableListOf<Bitmap>()
+        var pfd: android.os.ParcelFileDescriptor? = null
+        var renderer: android.graphics.pdf.PdfRenderer? = null
+        try {
+            pfd = android.os.ParcelFileDescriptor.open(pdfFile, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+            renderer = android.graphics.pdf.PdfRenderer(pfd)
+            val pages = renderer.pageCount.coerceAtMost(maxPages)
+            for (i in 0 until pages) {
+                val page = renderer.openPage(i)
+                val scale = 2
+                val bmp = Bitmap.createBitmap(page.width * scale, page.height * scale, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bmp)
+                canvas.drawColor(android.graphics.Color.WHITE)
+                page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.close()
+                list.add(bmp)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            try {
+                renderer?.close()
+                pfd?.close()
+            } catch (ignored: Exception) {}
+        }
+        return list
+    }
+
+    /**
+     * Preview card design directly in built-in Android PDF reader
+     */
+    fun openPdfPreviewWithBuiltInViewer(
+        context: Context,
+        config: CardTemplateConfig,
+        customBgBitmap: Bitmap? = null,
+        users: List<UserManagerUser> = emptyList(),
+        batch: GeneratedBatchRecord? = null
+    ) {
+        try {
+            val cacheFile = generatePdfPreviewFile(context, config, customBgBitmap, users, batch) ?: return
+
             val uri = androidx.core.content.FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -608,7 +664,7 @@ object CardPrintAndExportHelper {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            context.startActivity(Intent.createChooser(intent, "معاينة ملف PDF - ABO TALAL VIP"))
+            context.startActivity(Intent.createChooser(intent, "معاينة ملف PDF - ABO TALAL"))
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "تعذر فتح معاينة PDF: ${e.message}", Toast.LENGTH_LONG).show()
@@ -794,7 +850,7 @@ object CardPrintAndExportHelper {
             }
         }
 
-        printManager.print("ABO TALAL VIP - معاينة تصميم ${config.templateName}", printAdapter, null)
+        printManager.print("ABO TALAL - معاينة تصميم ${config.templateName}", printAdapter, null)
     }
 
     /**
@@ -904,7 +960,7 @@ object CardPrintAndExportHelper {
             }
         }
 
-        printManager.print("ABO TALAL VIP - كروت ${batch.batchId}", printAdapter, null)
+        printManager.print("ABO TALAL - كروت ${batch.batchId}", printAdapter, null)
     }
 
     /**
@@ -962,7 +1018,7 @@ object CardPrintAndExportHelper {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "كروت ${batch.batchId} - ABO TALAL VIP")
+                putExtra(Intent.EXTRA_SUBJECT, "كروت ${batch.batchId} - ABO TALAL")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
@@ -1024,7 +1080,7 @@ object CardPrintAndExportHelper {
                 type = "text/csv"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "تصدير دفعة كروت: ${batch.batchId}")
-                putExtra(Intent.EXTRA_TEXT, "ملف إكسل لكروت الدفعة ${batch.batchId} - نظام ABO TALAL VIP (${users.size} كرت)")
+                putExtra(Intent.EXTRA_TEXT, "ملف إكسل لكروت الدفعة ${batch.batchId} - نظام ABO TALAL (${users.size} كرت)")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 

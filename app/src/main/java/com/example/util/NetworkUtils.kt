@@ -120,4 +120,22 @@ object NetworkUtils {
         }
         return Pair(h, port)
     }
+
+    /**
+     * Converts any Arabic-Indic (٠-٩) or Persian (۰-۹) digits to standard ASCII digits (0-9).
+     * Essential for network device compatibility, MikroTik RouterOS usernames, and voucher codes.
+     */
+    fun toAsciiDigits(input: String): String {
+        val sb = StringBuilder(input.length)
+        for (ch in input) {
+            when (ch) {
+                in '٠'..'٩' -> sb.append((ch - '٠' + '0'.code).toChar())
+                in '۰'..'۹' -> sb.append((ch - '۰' + '0'.code).toChar())
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
 }
+
+fun String.toAsciiDigits(): String = NetworkUtils.toAsciiDigits(this)

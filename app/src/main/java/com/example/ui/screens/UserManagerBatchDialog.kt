@@ -47,6 +47,7 @@ import com.example.data.model.UserManagerUser
 import com.example.ui.theme.CairoFontFamily
 import com.example.ui.viewmodel.MikroTikViewModel
 import com.example.util.CardPrintAndExportHelper
+import com.example.util.toAsciiDigits
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -994,18 +995,20 @@ fun UserManagerBatchFullDialog(
                             item {
                                 Button(
                                     onClick = {
-                                        val count = cardCountInput.toIntOrNull() ?: 51
-                                        val len = nameLengthInput.toIntOrNull() ?: 9
+                                        val count = cardCountInput.toAsciiDigits().toIntOrNull()?.coerceIn(1, 5000) ?: 50
+                                        val len = nameLengthInput.toAsciiDigits().toIntOrNull()?.coerceIn(4, 30) ?: 9
+                                        val cleanPrefix = cardPrefixInput.toAsciiDigits()
+                                        val cleanSuffix = cardSuffixInput.toAsciiDigits()
                                         val price = 500 // or derived from profile
-                                        val excluded = if (excludeCharEnabled) excludedCharInput.toSet() else emptySet()
+                                        val excluded = if (excludeCharEnabled) excludedCharInput.toAsciiDigits().toSet() else emptySet()
 
                                         isGenerating = true
 
-                                        // Generate Users
+                                        // Generate Users with pure ASCII characters
                                         val generatedUsers = (1..count).map {
                                             val uname = generateCardCode(
-                                                prefix = cardPrefixInput,
-                                                suffix = cardSuffixInput,
+                                                prefix = cleanPrefix,
+                                                suffix = cleanSuffix,
                                                 length = len,
                                                 pattern = selectedNamePattern,
                                                 excludedChars = excluded
@@ -1015,7 +1018,7 @@ fun UserManagerBatchFullDialog(
                                                 "كلمة سر فارغة" -> ""
                                                 "اسم المستخدم = كلمة السر" -> uname
                                                 "أرقام وحروف مدمجة" -> generateRandomAlphaNumeric(6, excluded)
-                                                else -> Random.nextInt(1000, 9999).toString()
+                                                else -> String.format(Locale.US, "%04d", Random.nextInt(1000, 9999))
                                             }
 
                                             UserManagerUser(
@@ -1028,7 +1031,7 @@ fun UserManagerBatchFullDialog(
                                             )
                                         }
 
-                                        val batchCode = if (cardPrefixInput.isNotEmpty()) "${cardPrefixInput}-x$count" else "BATCH-${System.currentTimeMillis() % 10000}"
+                                        val batchCode = if (cleanPrefix.isNotEmpty()) "${cleanPrefix}-x$count" else "BATCH-${System.currentTimeMillis() % 10000}"
 
                                         // Send to router via ViewModel
                                         viewModel.batchAddUserManagerUsers(
@@ -1037,11 +1040,11 @@ fun UserManagerBatchFullDialog(
                                             onSuccess = {
                                                 val newRecord = GeneratedBatchRecord(
                                                     batchId = batchCode,
-                                                    date = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date()),
+                                                    date = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date()),
                                                     profileName = selectedProfileName,
                                                     count = count,
                                                     pricePerCard = price,
-                                                    prefix = cardPrefixInput
+                                                    prefix = cleanPrefix
                                                 )
                                                 onUpdateBatches(listOf(newRecord) + batchRecords)
                                                 isGenerating = false
@@ -1758,7 +1761,9 @@ private fun generateCardCode(
     pattern: String,
     excludedChars: Set<Char>
 ): String {
-    val allowedLength = (length - prefix.length - suffix.length).coerceAtLeast(3)
+    val cleanPrefix = prefix.toAsciiDigits()
+    val cleanSuffix = suffix.toAsciiDigits()
+    val allowedLength = (length - cleanPrefix.length - cleanSuffix.length).coerceAtLeast(3)
     val pool = when (pattern) {
         "احرف وارقام" -> "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
         "احرف صغيرة فقط" -> "abcdefghijkmnopqrstuvwxyz"
@@ -1770,7 +1775,7 @@ private fun generateCardCode(
         pool.random()
     }.joinToString("")
 
-    return "$prefix$core$suffix"
+    return "$cleanPrefix$core$cleanSuffix"
 }
 
 private fun generateRandomAlphaNumeric(length: Int, excludedChars: Set<Char>): String {

@@ -57,13 +57,36 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.OpenInNew
+import android.os.Environment
+import android.content.Intent
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -159,6 +182,16 @@ fun CardDesignScreen(
 
     // Active Tab: 0 = عناصر الكرت, 1 = مواصفات الصفحة والشبكة والخلفية
     var selectedTabIndex by remember { mutableStateOf(0) }
+
+    // Live Preview & Sticky Controls
+    var isPreviewCardExpanded by remember { mutableStateOf(true) }
+    var showGridLines by remember { mutableStateOf(false) }
+
+    // In-App PDF Preview Dialog
+    var showPdfSheetPreviewDialog by remember { mutableStateOf(false) }
+    var previewPdfFile by remember { mutableStateOf<File?>(null) }
+    var isGeneratingPdfPreview by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // Loaded Template Configuration
     var config by remember { mutableStateOf(CardPrintAndExportHelper.loadTemplateConfig(context, selectedTemplateName)) }
@@ -293,47 +326,77 @@ fun CardDesignScreen(
             },
             containerColor = Color(0xFFF8FAFC)
         ) { paddingValues ->
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(paddingValues)
             ) {
-
-                // 1. PINNED / STICKY LIVE CARD VISUAL PREVIEW
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                // 1. PINNED / STICKY LIVE CARD VISUAL PREVIEW (Fixed at the top)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 3.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            // Header of Preview Card
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Visibility,
-                                        contentDescription = null,
-                                        tint = Color(0xFF0C5A60),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "معاينة شكل الكرت المباشرة",
-                                        fontFamily = CairoFontFamily,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF0F172A)
-                                    )
-                                }
+                        // Header of Preview Card
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Visibility,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0C5A60),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "بطاقة المعاينة المباشرة (ثابتة)",
+                                    fontFamily = CairoFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
 
-                                // Card Dimensions Badge
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // Grid Lines Toggle
+                                FilterChip(
+                                    selected = showGridLines,
+                                    onClick = { showGridLines = !showGridLines },
+                                    label = {
+                                        Text(
+                                            if (showGridLines) "شبكة: نشطة" else "شبكة محاذاة",
+                                            fontFamily = CairoFontFamily,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.GridOn,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(13.dp),
+                                            tint = if (showGridLines) Color(0xFF0C5A60) else Color(0xFF64748B)
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFE0F2FE),
+                                        selectedLabelColor = Color(0xFF0C5A60)
+                                    ),
+                                    modifier = Modifier.height(28.dp)
+                                )
+
+                                // Dimensions Badge
                                 val cardW = if (config.autoFitA4) {
                                     val usableW = 210f - (config.pageMarginMm * 2) - (config.horizontalMarginMm * (config.columns - 1))
                                     (usableW / config.columns.coerceAtLeast(1)).roundToInt()
@@ -351,71 +414,102 @@ fun CardDesignScreen(
                                     Text(
                                         text = "$cardW × $cardH مم",
                                         fontFamily = CairoFontFamily,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         color = Color(0xFF0C5A60),
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+
+                                // Collapse / Expand Preview Button
+                                IconButton(
+                                    onClick = { isPreviewCardExpanded = !isPreviewCardExpanded },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPreviewCardExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                        contentDescription = "طي أو توسيع المعاينة",
+                                        tint = Color(0xFF64748B)
                                     )
                                 }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                        // Collapsible card visual preview
+                        AnimatedVisibility(
+                            visible = isPreviewCardExpanded,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Column {
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                            // The Interactive Preview Box with Real Background & Precise Mm Positioning
-                            LiveCardVisualPreview(
-                                config = config,
-                                customBgBitmap = customBgBitmap,
-                                displayUser = displayUser,
-                                displayBatch = displayBatch,
-                                onUsernamePositionChange = { newX, newY ->
-                                    val updated = config.copy(
-                                        usernameConfig = config.usernameConfig.copy(
-                                            xMm = newX,
-                                            yMm = newY
+                                // The Interactive Preview Box with Real Background & Precise Mm Positioning
+                                LiveCardVisualPreview(
+                                    config = config,
+                                    customBgBitmap = customBgBitmap,
+                                    displayUser = displayUser,
+                                    displayBatch = displayBatch,
+                                    showGridLines = showGridLines,
+                                    onUsernamePositionChange = { newX, newY ->
+                                        val updated = config.copy(
+                                            usernameConfig = config.usernameConfig.copy(
+                                                xMm = newX,
+                                                yMm = newY
+                                            )
                                         )
-                                    )
-                                    config = updated
-                                    CardPrintAndExportHelper.saveTemplateConfig(context, updated)
-                                }
-                            )
+                                        config = updated
+                                        CardPrintAndExportHelper.saveTemplateConfig(context, updated)
+                                    }
+                                )
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                            // Real-time Coordinate Status Strip
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFF1F5F9),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                // Real-time Coordinate Status Strip
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFF1F5F9),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "موضع الكود: س = ${config.usernameConfig.xMm} مم | ص = ${config.usernameConfig.yMm} مم",
-                                        fontFamily = CairoFontFamily,
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF0C5A60),
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "موضع الكود: س = ${config.usernameConfig.xMm} مم | ص = ${config.usernameConfig.yMm} مم",
+                                            fontFamily = CairoFontFamily,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF0C5A60),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
 
-                                    Text(
-                                        text = "الخط: ${config.usernameConfig.fontSize.toInt()} pt",
-                                        fontFamily = CairoFontFamily,
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF475569)
-                                    )
+                                        Text(
+                                            text = "الخط: ${config.usernameConfig.fontSize.toInt()} pt",
+                                            fontFamily = CairoFontFamily,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF475569)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // 2. TEMPLATES MANAGEMENT & CONTROLS
-                item {
+                // SCROLLABLE SETTINGS & TABS
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+
+                    // 2. TEMPLATES MANAGEMENT & CONTROLS
+                    item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -536,17 +630,29 @@ fun CardDesignScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Button 1: Open built-in PDF Reader
+                                // Button 1: In-App Sheet PDF Viewer + Native Reader
                                 Button(
                                     onClick = {
-                                        CardPrintAndExportHelper.saveTemplateConfig(context, config)
-                                        CardPrintAndExportHelper.openPdfPreviewWithBuiltInViewer(
-                                            context = context,
-                                            config = config,
-                                            customBgBitmap = customBgBitmap,
-                                            users = if (realUsers.isNotEmpty()) realUsers else emptyList(),
-                                            batch = displayBatch
-                                        )
+                                        scope.launch {
+                                            isGeneratingPdfPreview = true
+                                            CardPrintAndExportHelper.saveTemplateConfig(context, config)
+                                            val file = withContext(Dispatchers.IO) {
+                                                CardPrintAndExportHelper.generatePdfPreviewFile(
+                                                    context = context,
+                                                    config = config,
+                                                    customBgBitmap = customBgBitmap,
+                                                    users = if (realUsers.isNotEmpty()) realUsers else emptyList(),
+                                                    batch = displayBatch
+                                                )
+                                            }
+                                            isGeneratingPdfPreview = false
+                                            if (file != null) {
+                                                previewPdfFile = file
+                                                showPdfSheetPreviewDialog = true
+                                            } else {
+                                                Toast.makeText(context, "تعذر إنشاء ملف PDF للمعاينة", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                     },
                                     modifier = Modifier
                                         .weight(1f)
@@ -554,9 +660,15 @@ fun CardDesignScreen(
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
                                 ) {
-                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(17.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("معاينة PDF", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    if (isGeneratingPdfPreview) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("جارِ التوليد...", fontFamily = CairoFontFamily, fontSize = 11.sp, color = Color.White)
+                                    } else {
+                                        Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(17.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("معاينة PDF", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
                                 }
 
                                 // Button 2: Print & Save PDF (Native Android Spooler + Downloads)
@@ -845,6 +957,7 @@ fun CardDesignScreen(
                 }
             }
         }
+        }
     }
 
     // --- DIALOG: New Template Dialog ---
@@ -1043,6 +1156,335 @@ fun CardDesignScreen(
             }
         )
     }
+
+    // --- IN-APP PDF PREVIEW DIALOG ---
+    if (showPdfSheetPreviewDialog && previewPdfFile != null) {
+        PdfSheetPreviewDialog(
+            pdfFile = previewPdfFile!!,
+            config = config,
+            customBgBitmap = customBgBitmap,
+            context = context,
+            onDismiss = { showPdfSheetPreviewDialog = false }
+        )
+    }
+}
+
+/**
+ * In-App Full Sheet PDF Visual Viewer with Android Native UI, Zoom, Page Navigation, and Printing
+ */
+@Composable
+fun PdfSheetPreviewDialog(
+    pdfFile: File,
+    config: CardTemplateConfig,
+    customBgBitmap: Bitmap?,
+    context: Context,
+    onDismiss: () -> Unit
+) {
+    var currentPageIndex by remember { mutableIntStateOf(0) }
+    var totalPages by remember { mutableIntStateOf(1) }
+    var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var zoomScale by remember { mutableFloatStateOf(1.0f) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentPageIndex, pdfFile) {
+        withContext(Dispatchers.IO) {
+            try {
+                ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                    PdfRenderer(pfd).use { renderer ->
+                        totalPages = renderer.pageCount.coerceAtLeast(1)
+                        val safeIndex = currentPageIndex.coerceIn(0, totalPages - 1)
+                        renderer.openPage(safeIndex).use { page ->
+                            val bmp = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(bmp)
+                            canvas.drawColor(android.graphics.Color.WHITE)
+                            page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            pageBitmap = bmp
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                errorMessage = e.localizedMessage ?: "خطأ أثناء عرض صفحة PDF"
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFF8FAFC)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top Action Bar
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF0C5A60),
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Filled.Close, contentDescription = "إغلاق", tint = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "معاينة صفحة الكروت (A4 PDF)",
+                                fontFamily = CairoFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Zoom Out
+                            IconButton(
+                                onClick = { zoomScale = (zoomScale - 0.2f).coerceAtLeast(0.6f) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Filled.ZoomOut, contentDescription = "تصغير", tint = Color.White)
+                            }
+
+                            Text(
+                                text = "${(zoomScale * 100).toInt()}%",
+                                fontFamily = CairoFontFamily,
+                                fontSize = 11.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Zoom In
+                            IconButton(
+                                onClick = { zoomScale = (zoomScale + 0.2f).coerceAtMost(2.5f) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Filled.ZoomIn, contentDescription = "تكبير", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+
+                // Page Navigation Bar
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 1.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (currentPageIndex > 0) currentPageIndex--
+                                },
+                                enabled = currentPageIndex > 0,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "السابق",
+                                    tint = if (currentPageIndex > 0) Color(0xFF0C5A60) else Color(0xFFCBD5E1)
+                                )
+                            }
+
+                            Text(
+                                text = "صفحة ${currentPageIndex + 1} من $totalPages",
+                                fontFamily = CairoFontFamily,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF334155)
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    if (currentPageIndex < totalPages - 1) currentPageIndex++
+                                },
+                                enabled = currentPageIndex < totalPages - 1,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "التالي",
+                                    tint = if (currentPageIndex < totalPages - 1) Color(0xFF0C5A60) else Color(0xFFCBD5E1)
+                                )
+                            }
+                        }
+
+                        // Open with external PDF viewer app button
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        pdfFile
+                                    )
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, "application/pdf")
+                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "فتح بواسطة قارئ PDF"))
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "لم يتم العثور على قارئ PDF خارجي", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("فتح بتطبيق خارجي", fontFamily = CairoFontFamily, fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                // Main PDF Rendering Canvas Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(Color(0xFF475569))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (pageBitmap != null) {
+                        Card(
+                            shape = RoundedCornerShape(4.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            modifier = Modifier.graphicsLayer(
+                                scaleX = zoomScale,
+                                scaleY = zoomScale
+                            )
+                        ) {
+                            Image(
+                                bitmap = pageBitmap!!.asImageBitmap(),
+                                contentDescription = "معاينة صفحة PDF",
+                                modifier = Modifier.fillMaxWidth(0.95f),
+                                contentScale = ContentScale.FillWidth
+                            )
+                        }
+                    } else if (errorMessage != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "تعذر عرض المعاينة داخل التطبيق",
+                                    fontFamily = CairoFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF4444)
+                                )
+                                Text(
+                                    text = errorMessage ?: "",
+                                    fontFamily = CairoFontFamily,
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+
+                // Bottom Direct Action Bar
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Action 1: Print Document via Native Android Spooler
+                        Button(
+                            onClick = {
+                                CardPrintAndExportHelper.printAndSavePdfDocument(
+                                    context = context,
+                                    config = config,
+                                    customBgBitmap = customBgBitmap,
+                                    users = emptyList(),
+                                    batch = null
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C5A60))
+                        ) {
+                            Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("طباعة المستند", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        // Action 2: Share PDF File
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        pdfFile
+                                    )
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_SUBJECT, "كروت شبكة - ABO TALAL")
+                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "مشاركة ملف PDF"))
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "فشلت المشاركة: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("مشاركة PDF", fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -1054,6 +1496,7 @@ fun LiveCardVisualPreview(
     customBgBitmap: Bitmap?,
     displayUser: UserManagerUser,
     displayBatch: GeneratedBatchRecord,
+    showGridLines: Boolean = false,
     onUsernamePositionChange: (newX: Float, newY: Float) -> Unit
 ) {
     val borderColor = parseHexToColor(config.borderColorHex)
@@ -1114,6 +1557,38 @@ fun LiveCardVisualPreview(
                     )
                 } else {
                     DefaultVoucherBoxVisual()
+                }
+            }
+        }
+
+        // Grid Lines Overlay (خطوط ومسطرة المحاذاة)
+        if (showGridLines) {
+            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                val gridColor = Color(0x3300E5FF)
+                val majorColor = Color(0x7700E5FF)
+                var x = 5f
+                while (x < cardWidthMm) {
+                    val px = x * scaleX
+                    val isMajor = (x % 10f == 0f)
+                    drawLine(
+                        color = if (isMajor) majorColor else gridColor,
+                        start = androidx.compose.ui.geometry.Offset(px, 0f),
+                        end = androidx.compose.ui.geometry.Offset(px, boxHeightPx),
+                        strokeWidth = if (isMajor) 1.5f else 0.8f
+                    )
+                    x += 5f
+                }
+                var y = 5f
+                while (y < cardHeightMm) {
+                    val py = y * scaleY
+                    val isMajor = (y % 10f == 0f)
+                    drawLine(
+                        color = if (isMajor) majorColor else gridColor,
+                        start = androidx.compose.ui.geometry.Offset(0f, py),
+                        end = androidx.compose.ui.geometry.Offset(boxWidthPx, py),
+                        strokeWidth = if (isMajor) 1.5f else 0.8f
+                    )
+                    y += 5f
                 }
             }
         }

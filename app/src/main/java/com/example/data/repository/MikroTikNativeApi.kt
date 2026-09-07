@@ -195,6 +195,11 @@ class MikroTikNativeApi(
         }
     }
 
+    fun execute(command: String, params: Map<String, String>): List<Map<String, String>> {
+        val arr = params.map { "${it.key}=${it.value}" }.toTypedArray()
+        return execute(command, *arr)
+    }
+
     fun execute(command: String, vararg params: String): List<Map<String, String>> {
         val results = mutableListOf<Map<String, String>>()
         synchronized(socketLock) {

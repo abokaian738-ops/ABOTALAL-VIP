@@ -1500,12 +1500,44 @@ class MikroTikRepository(
 
     fun batchAddUserManagerUsers(users: List<UserManagerUser>, batchName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         repositoryScope.launch {
-            delay(500)
-            val list = _userManagerUsers.value.toMutableList()
-            list.addAll(users)
-            _userManagerUsers.value = list
-            insertActivityLog("توليد دفعة كروت", "تم توليد دفعة كروت جديدة ($batchName) بعدد ${users.size} كرت في اليوزر مانجر", _currentConnection.value?.host ?: "192.168.88.1")
-            launch(Dispatchers.Main) { onSuccess() }
+            try {
+                // If connected to live router, execute commands via RouterOS API
+                val api = nativeApi
+                if (_isConnected.value && api != null) {
+                    try {
+                        users.forEach { u ->
+                            api.execute(
+                                "/tool/user-manager/user/add",
+                                mapOf(
+                                    "customer" to "admin",
+                                    "username" to u.username,
+                                    "password" to u.password
+                                )
+                            )
+                            if (u.profile.isNotEmpty()) {
+                                api.execute(
+                                    "/tool/user-manager/user/create-and-activate-profile",
+                                    mapOf(
+                                        "customer" to "admin",
+                                        "numbers" to u.username,
+                                        "profile" to u.profile
+                                    )
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("MikroTikRepo", "Batch API add partial/fallback: ${e.message}")
+                    }
+                }
+                val list = _userManagerUsers.value.toMutableList()
+                // Prepend so new cards appear instantly at top
+                list.addAll(0, users)
+                _userManagerUsers.value = list
+                insertActivityLog("توليد دفعة كروت", "تم توليد دفعة كروت جديدة ($batchName) بعدد ${users.size} كرت في اليوزر مانجر", _currentConnection.value?.host ?: "192.168.88.1")
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                launch(Dispatchers.Main) { onError(e.message ?: "خطأ في إضافة الكروت") }
+            }
         }
     }
 
@@ -1679,7 +1711,7 @@ class MikroTikRepository(
             )
         }
         for (i in 19..85) {
-            val numStr = String.format("%06d", (i * 1237) % 999999)
+            val numStr = String.format(Locale.US, "%06d", (i * 1237) % 999999)
             fullCardList.add(
                 UserManagerUser(
                     username = numStr,
